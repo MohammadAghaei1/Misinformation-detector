@@ -11,6 +11,8 @@ import datetime
 import os
 import pandas as pd
 
+DATA_PATH = os.path.join("data", "news.xlsx")
+
 
 app = FastAPI()
 
@@ -169,7 +171,7 @@ def history(limit: int = 50):
         print(f"Error loading history: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))'''
 
-@app.get("/history")
+'''@app.get("/history")
 def history(limit: int = 50):
     try:
         from backend.storage import DATA_PATH
@@ -178,6 +180,18 @@ def history(limit: int = 50):
         
         df = pd.read_excel(DATA_PATH)
         df = df.fillna("") 
+        
+        return df.tail(limit).to_dict(orient="records")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))'''
+
+@app.get("/history")
+def history(limit: int = 50):
+    try:
+        if not os.path.exists(DATA_PATH):
+            return []
+        df = pd.read_excel(DATA_PATH)
+        df = df.fillna("")
         
         return df.tail(limit).to_dict(orient="records")
     except Exception as e:

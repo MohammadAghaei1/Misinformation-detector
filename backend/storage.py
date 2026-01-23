@@ -55,29 +55,34 @@ def ensure_file_exists():
 
 def append_record(record: dict):
     ensure_file_exists()
-    df_existing = pd.read_excel(DATA_PATH, engine='openpyxl')
-
-    record = {key: (value if not isinstance(value, float) or not np.isnan(value) else None) 
-              for key, value in record.items()}
-
-    if "id" not in record or record["id"] is None:
-        record["id"] = str(len(df_existing) + 1)
-    
-    if "timestamp" not in record:
-        record["timestamp"] = datetime.now().isoformat(timespec="seconds")
-
-    columns = [
-        "id", "timestamp", "input_type", "url", "title", "text", 
-        "label", "confidence", "explanation", "reviewer_feedback"
-    ]
-    
-    record_data = pd.DataFrame([record], columns=columns)
-    
-    df_combined = pd.concat([record_data, df_existing], ignore_index=True)
     
     try:
-        df_combined.to_excel(DATA_PATH, index=False, engine='openpyxl')
-        print(f"Record {record['id']} added to the top.")
+        if os.path.exists(DATA_PATH):
+            df_existing = pd.read_excel(DATA_PATH, engine='openpyxl')
+        else:
+            df_existing = pd.DataFrame()
+
+        record = {key: (value if not isinstance(value, float) or not np.isnan(value) else None) 
+                  for key, value in record.items()}
+
+        if "id" not in record or record["id"] is None:
+            record["id"] = len(df_existing) + 1
+        
+        if "timestamp" not in record:
+            record["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        columns = [
+            "id", "timestamp", "input_type", "url", "title", "text", 
+            "label", "confidence", "explanation", "reviewer_feedback"
+        ]
+        
+        df_new = pd.DataFrame([record], columns=columns)
+        
+        df_final = pd.concat([df_existing, df_new], ignore_index=True)
+        
+        df_final.to_excel(DATA_PATH, index=False, engine='openpyxl')
+        print(f"Record {record['id']} successfully added to the end of Excel.")
+        
     except Exception as e:
         print(f"Error saving to Excel: {e}")
 
