@@ -39,42 +39,38 @@ with tab1:
 
 with tab2:
     st.subheader("Paste news text")
-    text = st.text_area("Paste news text here", key="main_text_input")
+    text = st.text_area("Paste news text here", key="input_area")
 
     if st.button("Analyze Text"):
-        payload = {"text": text}
-        r = requests.post(f"{API_URL}/predict", json=payload)
+        r = requests.post(f"{API_URL}/predict", json={"text": text})
         if r.status_code == 200:
-            st.session_state['result'] = r.json()
-            st.session_state['original_text'] = text
+            st.session_state['analysis'] = r.json()
+            st.session_state['last_text'] = text
         else:
-            st.error(f"Error: {r.status_code}")
+            st.error("Error in analysis")
 
-    if 'result' in st.session_state:
-        res = st.session_state['result']
+    if 'analysis' in st.session_state:
+        res = st.session_state['analysis']
         
-        st.write("---")
-        st.write(f"**Prediction:** {res['label']}")  
-        st.write(f"**Confidence:** {res['confidence']}")  
+        st.success(f"Prediction: {res['label']} | Confidence: {res['confidence']}")
         
-        st.subheader("Reviewer Feedback")
-        user_fb = st.text_area("Enter your feedback here:", value="", key="reviewer_fb_input")
-        
-        if st.button("Submit Final Record"):
-            final_payload = {
-                "text": st.session_state['original_text'],
-                "label": res['label'],
-                "confidence": res['confidence'],
-                "explanation": res['explanation'],
-                "reviewer_feedback": user_fb, 
-                "input_type": "text"
-            }
-            resp = requests.post(f"{API_URL}/save_with_feedback", json=final_payload)
-            if resp.status_code == 200:
-                st.success("Saved successfully!")
-                del st.session_state['result']
-                st.rerun()
-
+        with st.expander("Click here to add Reviewer Feedback"):
+            user_fb = st.text_area("Your comment:", value="", key="feedback_box")
+            
+            if st.button("Save Final Record"):
+                payload = {
+                    "text": st.session_state['last_text'],
+                    "label": res['label'],
+                    "confidence": res['confidence'],
+                    "explanation": res['explanation'],
+                    "reviewer_feedback": user_fb,
+                    "input_type": "text"
+                }
+                save_r = requests.post(f"{API_URL}/save_with_feedback", json=payload)
+                if save_r.status_code == 200:
+                    st.toast("Saved to Excel!") 
+                    del st.session_state['analysis'] 
+                    st.rerun()
 # Tab 3:
 with tab3:
     st.subheader("History (from Excel)")
