@@ -2,9 +2,8 @@ import streamlit as st
 import requests
 import pandas as pd
 
-API_URL = "http://127.0.0.1:8000"
-
 st.title("Misinformation Detector (PoC)")
+API_URL = "http://127.0.0.1:8000"
 
 tab1, tab2, tab3 = st.tabs(["Analyze by URL", "Paste text", "History"])
 
