@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from backend.scraping import scrape_article
-from backend.storage import append_record, read_history, update_record_feedback
+from backend.storage import append_record, update_record_feedback
 from backend.llm_judge import judge_news
 from dotenv import load_dotenv
 load_dotenv()
@@ -11,8 +11,6 @@ import datetime
 import os
 import pandas as pd
 
-DATA_PATH = os.path.join("data", "news.xlsx")
-
 
 app = FastAPI()
 
@@ -21,6 +19,10 @@ class PredictRequest(BaseModel):
 
 class ScrapeRequest(BaseModel):
     url: str
+    
+class FeedbackRequest(BaseModel):
+    id: str
+    feedback: str    
 
 
 @app.get("/health")
@@ -38,46 +40,11 @@ def scrape(req: ScrapeRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Scraping failed: {str(e)}")
 
-
-'''@app.post("/predict")
-def predict(req: PredictRequest):
-    try:
-        result = judge_news(req.text)
-        
-        print(f"Model response: {result}")  
-        
-        label = result.get("label", "uncertain")
-        confidence = result.get("confidence", 0)
-        explanation = result.get("explanation", "No explanation provided")
-        
-        record = {
-            "input_type": "text",  
-            "url": "",  
-            "title": "N/A", 
-            "text": req.text,
-            "label": label,  
-            "confidence": confidence,  
-            "explanation": explanation,  
-            "reviewer_feedback": "" 
-        }
-
-        append_record(record)  
-
-        return {
-            "label": label,
-            "confidence": confidence,
-            "explanation": explanation
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))'''
-    
-
 @app.post("/predict")
 def predict(req: PredictRequest):
     try:
         result = judge_news(req.text)
-        record_id = str(uuid.uuid4())[:8] 
+        record_id = str(uuid.uuid4())[:8]
         
         record = {
             "id": record_id,
@@ -91,7 +58,8 @@ def predict(req: PredictRequest):
             "explanation": result.get("explanation"),
             "reviewer_feedback": "" 
         }
-        append_record(record) 
+        
+        append_record(record)
         
         return {
             "id": record_id,
@@ -101,33 +69,6 @@ def predict(req: PredictRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-'''@app.post("/analyze_url")
-def analyze_url(req: ScrapeRequest):
-    """
-    URL -> scrape -> predict -> store in Excel -> return result
-    """
-    try:
-        article = scrape_article(req.url)
-        print(f"Extracted Text from URL: {article['text'][:500]}...")  
-
-        result = judge_news(article["text"]) 
-        
-        record = {
-            "input_type": "url",
-            "url": article["url"],
-            "title": article["title"],
-            "text": article["text"],
-            "label": result['label'],
-            "confidence": result['confidence'],
-            "explanation": result['explanation'],
-            "reviewer_feedback": ""
-        }
-        append_record(record)  
-
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Analyze URL failed: {str(e)}")'''
 
 @app.post("/analyze_url")
 def analyze_url(req: ScrapeRequest):
@@ -144,59 +85,30 @@ def analyze_url(req: ScrapeRequest):
             "url": article["url"],
             "title": article["title"],
             "text": article["text"],
-            "label": result['label'],
-            "confidence": result['confidence'],
-            "explanation": result['explanation'],
+            "label": result.get('label'),
+            "confidence": result.get('confidence'),
+            "explanation": result.get('explanation'),
             "reviewer_feedback": ""
         }
         append_record(record)
 
-        return {**result, "id": record_id} 
+        return {
+            "id": record_id,
+            "label": result.get('label'),
+            "confidence": result.get('confidence'),
+            "explanation": result.get('explanation')
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-'''@app.get("/history")
-def history(limit: int = 50):
-    try:
-        df = read_history(limit=limit)
-        
-        if df.empty:
-            raise HTTPException(status_code=404, detail="No records found in history.")
-        
-        print(f"Loaded {len(df)} records from Excel.")
-        
-        return df.to_dict(orient="records")
-    
-    except Exception as e:
-        print(f"Error loading history: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))'''
-
-'''@app.get("/history")
-def history(limit: int = 50):
-    try:
-        from backend.storage import DATA_PATH
-        if not os.path.exists(DATA_PATH):
-            return []
-        
-        df = pd.read_excel(DATA_PATH)
-        df = df.fillna("") 
-        
-        return df.tail(limit).to_dict(orient="records")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))'''
 
 @app.get("/history")
 def history(limit: int = 50):
     try:
-        if not os.path.exists(DATA_PATH):
-            return []
-        df = pd.read_excel(DATA_PATH)
-        df = df.fillna("")
-        
-        return df.tail(limit).to_dict(orient="records")
+        from backend.storage import read_history
+        df = read_history(limit)
+        return df.to_dict(orient="records")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 class FinalRecordRequest(BaseModel):
     text: str
@@ -229,13 +141,8 @@ def save_with_feedback(req: FinalRecordRequest):
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.post("/update_feedback")
-def update_feedback(data: dict):
-    from backend.storage import update_record_feedback
-    
-    record_id = data.get("id")
-    feedback = data.get("feedback")
-    
-    success = update_record_feedback(record_id, feedback)
+def update_feedback(req: FeedbackRequest):
+    success = update_record_feedback(req.id, req.feedback)
     if success:
         return {"status": "success"}
     else:
