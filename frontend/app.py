@@ -22,7 +22,7 @@ with tab1:
 
 
 # Tab 2: Paste news text
-with tab2:
+'''with tab2:
     st.subheader("Paste news text")
     text = st.text_area("Paste news text here")
 
@@ -35,7 +35,50 @@ with tab2:
             st.write(f"**Confidence:** {result['confidence']}")  
             st.write(f"**Explanation:** {result['explanation']}")  
         else:
+            st.error(f"Error: {r.status_code} - {r.text}")'''
+
+with tab2:
+    st.subheader("Paste news text")
+    text = st.text_area("Paste news text here")
+
+    if st.button("Analyze Text"):
+        payload = {"text": text}
+        r = requests.post(f"{API_URL}/predict", json=payload)
+        if r.status_code == 200:
+            result = r.json()
+            st.session_state['current_analysis'] = result
+            st.session_state['current_text'] = text
+        else:
             st.error(f"Error: {r.status_code} - {r.text}")
+
+    if 'current_analysis' in st.session_state:
+        res = st.session_state['current_analysis']
+        
+        st.write("---")
+        st.write(f"**Prediction:** {res['label']}")  
+        st.write(f"**Confidence:** {res['confidence']}")  
+        st.write(f"**Explanation:** {res['explanation']}")  
+        
+        st.subheader("Reviewer Feedback")
+        user_fb = st.text_area("What is your opinion about this prediction?", key="fb_area")
+        
+        if st.button("Submit Final Feedback"):
+            final_data = {
+                "text": st.session_state['current_text'],
+                "label": res['label'],
+                "confidence": res['confidence'],
+                "explanation": res['explanation'],
+                "reviewer_feedback": user_fb,
+                "input_type": "text"
+            }
+            
+            resp = requests.post(f"{API_URL}/save_with_feedback", json=final_data)
+            
+            if resp.status_code == 200:
+                st.success("Feedback saved in Excel!")
+                del st.session_state['current_analysis']
+            else:
+                st.error("Failed to save feedback.")
 
 # Tab 3:
 with tab3:

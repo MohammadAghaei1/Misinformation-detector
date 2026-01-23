@@ -108,3 +108,37 @@ def history(limit: int = 50):
     except Exception as e:
         print(f"Error loading history: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+import datetime
+import uuid
+
+class FinalRecordRequest(BaseModel):
+    text: str
+    label: str
+    confidence: float
+    explanation: str
+    reviewer_feedback: str
+    input_type: str = "text"
+    url: str = ""
+    title: str = "N/A"
+
+@app.post("/save_with_feedback")
+def save_with_feedback(req: FinalRecordRequest):
+    try:
+        record = {
+            "id": str(uuid.uuid4())[:8],
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "input_type": req.input_type,
+            "url": req.url,
+            "title": req.title,
+            "text": req.text,
+            "label": req.label,
+            "confidence": req.confidence,
+            "explanation": req.explanation,
+            "reviewer_feedback": req.reviewer_feedback
+        }
+        
+        append_record(record)
+        return {"status": "success", "message": "Record saved successfully with feedback"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
