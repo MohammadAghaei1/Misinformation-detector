@@ -98,14 +98,6 @@ def predict(req: PredictRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/update_feedback")
-def update_feedback(data: dict):
-    from backend.storage import update_record_feedback
-    success = update_record_feedback(data['id'], data['feedback'])
-    if success:
-        return {"status": "success"}
-    raise HTTPException(status_code=404, detail="Record not found")
-
 @app.post("/analyze_url")
 def analyze_url(req: ScrapeRequest):
     """
@@ -182,3 +174,16 @@ def save_with_feedback(req: FinalRecordRequest):
         return {"status": "success"} 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.post("/update_feedback")
+def update_feedback(data: dict):
+    from backend.storage import update_record_feedback
+    
+    record_id = data.get("id")
+    feedback = data.get("feedback")
+    
+    success = update_record_feedback(record_id, feedback)
+    if success:
+        return {"status": "success"}
+    else:
+        raise HTTPException(status_code=404, detail="Record not found")

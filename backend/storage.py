@@ -5,17 +5,27 @@ import numpy as np
 
 DATA_PATH = os.path.join("data", "news.xlsx")
 
-def ensure_file_exists():
+'''def ensure_file_exists():
     os.makedirs("data", exist_ok=True)
     if not os.path.exists(DATA_PATH):
         df = pd.DataFrame(columns=[
             "id", "timestamp", "input_type", "url", "title", "text",
             "label", "confidence", "explanation", "reviewer_feedback"
         ])
+        df.to_excel(DATA_PATH, index=False, engine='openpyxl')'''
+
+def ensure_file_exists():
+    os.makedirs("data", exist_ok=True)
+    if not os.path.exists(DATA_PATH):
+        columns = [
+            "id", "timestamp", "input_type", "url", "title", "text", 
+            "label", "confidence", "explanation", "reviewer_feedback"
+        ]
+        df = pd.DataFrame(columns=columns)
         df.to_excel(DATA_PATH, index=False, engine='openpyxl')
 
 
-def append_record(record: dict):
+'''def append_record(record: dict):
     ensure_file_exists()
     df = pd.read_excel(DATA_PATH, engine='openpyxl')
 
@@ -41,7 +51,34 @@ def append_record(record: dict):
         df.to_excel(DATA_PATH, index=False, engine='openpyxl')
         print("Data saved to Excel successfully.")  # Log success
     except Exception as e:
-        print(f"Error saving to Excel: {e}")  # Log error
+        print(f"Error saving to Excel: {e}")  # Log error'''
+
+def append_record(record: dict):
+    ensure_file_exists()
+    df = pd.read_excel(DATA_PATH, engine='openpyxl')
+
+    record = {key: (value if not isinstance(value, float) or not np.isnan(value) else None) 
+              for key, value in record.items()}
+
+    if "id" not in record or record["id"] is None:
+        record["id"] = str(len(df) + 1)
+    
+    if "timestamp" not in record:
+        record["timestamp"] = datetime.now().isoformat(timespec="seconds")
+
+    columns = [
+        "id", "timestamp", "input_type", "url", "title", "text", 
+        "label", "confidence", "explanation", "reviewer_feedback"
+    ]
+    
+    record_data = pd.DataFrame([record], columns=columns)
+    df = pd.concat([df, record_data], ignore_index=True)
+    
+    try:
+        df.to_excel(DATA_PATH, index=False, engine='openpyxl')
+        print(f"Record {record['id']} created successfully.")
+    except Exception as e:
+        print(f"Error saving to Excel: {e}")
 
 
 def read_history(limit: int = 50):
@@ -58,16 +95,21 @@ def read_history(limit: int = 50):
         raise e
 
 def update_record_feedback(record_id, feedback_text):
-    file_path = "news.xlsx" 
+    ensure_file_exists()
     try:
-        df = pd.read_excel(file_path)
+        df = pd.read_excel(DATA_PATH, engine='openpyxl')
         df['id'] = df['id'].astype(str)
         
-        if record_id in df['id'].values:
-            df.loc[df['id'] == str(record_id), 'reviewer_feedback'] = feedback_text
-            df.to_excel(file_path, index=False)
+        target_id = str(record_id)
+        
+        if target_id in df['id'].values:
+            df.loc[df['id'] == target_id, 'reviewer_feedback'] = feedback_text
+            df.to_excel(DATA_PATH, index=False, engine='openpyxl')
+            print(f"Feedback updated for ID: {target_id}")
             return True
-        return False
+        else:
+            print(f"ID {target_id} not found in Excel.")
+            return False
     except Exception as e:
-        print(f"Error updating excel: {e}")
+        print(f"Error updating feedback: {e}")
         return False
