@@ -127,14 +127,17 @@ with tab3:
 
 with tab3:
     st.subheader("History (Newest First)")
-    if st.button("Load/Refresh History"):
-        r = requests.get(f"{API_URL}/history")
+    
+    try:
+        r = requests.get(f"{API_URL}/history?limit=50")
         if r.status_code == 200:
             data = r.json()
             if data:
                 df = pd.DataFrame(data)
-                if 'timestamp' in df.columns:
-                    df['timestamp'] = pd.to_datetime(df['timestamp'])
-                    df = df.sort_values(by='timestamp', ascending=False)
-                
-                st.dataframe(df, use_container_width=True)
+                st.dataframe(df, use_container_width=True, height=600)
+            else:
+                st.info("No records found in history.")
+        else:
+            st.error(f"Could not load history: {r.status_code}")
+    except Exception as e:
+        st.error(f"Connection error: {e}")
