@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+data/*.xlsx
+<<<<<<< HEAD
+.env
+=======
+.env
+>>>>>>> 29db51d065ffcc0872e87140a35d960a0eab5a23
