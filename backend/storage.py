@@ -55,7 +55,6 @@ def ensure_file_exists():
 
 def append_record(record: dict):
     ensure_file_exists()
-    
     df_existing = pd.read_excel(DATA_PATH, engine='openpyxl')
 
     record = {key: (value if not isinstance(value, float) or not np.isnan(value) else None) 
@@ -74,7 +73,7 @@ def append_record(record: dict):
     
     df_new = pd.DataFrame([record], columns=columns)
     
-    # New record goes to the end (bottom)
+    # New record goes to the bottom
     df_final = pd.concat([df_existing, df_new], ignore_index=True)
     
     try:
@@ -87,13 +86,15 @@ def read_history(limit: int = 50):
     ensure_file_exists()
     try:
         df = pd.read_excel(DATA_PATH, engine='openpyxl')
+        
+        # Replace NaN values
+        df = df.where(pd.notnull(df), None)
 
-        print(f"Read {len(df)} rows from Excel.")
+        # Reverse the order so the newest (bottom rows) appear first
+        df_reversed = df.iloc[::-1]
 
-        df = df.applymap(lambda x: None if isinstance(x, float) and np.isnan(x) else x)
-        return df.tail(limit)  
+        return df_reversed.head(limit)
     except Exception as e:
-        print(f"Error reading history from Excel: {str(e)}") 
         raise e
 
 def update_record_feedback(record_id, feedback_text):
