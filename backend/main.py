@@ -137,8 +137,7 @@ def save_with_feedback(req: FinalRecordRequest):
             "explanation": req.explanation,
             "reviewer_feedback": req.reviewer_feedback
         }
-        
         append_record(record)
-        return {"status": "success", "message": "Record saved successfully with feedback"}
+        return {"status": "success"} 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
