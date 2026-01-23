@@ -55,13 +55,13 @@ def ensure_file_exists():
 
 def append_record(record: dict):
     ensure_file_exists()
-    df = pd.read_excel(DATA_PATH, engine='openpyxl')
+    df_existing = pd.read_excel(DATA_PATH, engine='openpyxl')
 
     record = {key: (value if not isinstance(value, float) or not np.isnan(value) else None) 
               for key, value in record.items()}
 
     if "id" not in record or record["id"] is None:
-        record["id"] = str(len(df) + 1)
+        record["id"] = str(len(df_existing) + 1)
     
     if "timestamp" not in record:
         record["timestamp"] = datetime.now().isoformat(timespec="seconds")
@@ -72,11 +72,12 @@ def append_record(record: dict):
     ]
     
     record_data = pd.DataFrame([record], columns=columns)
-    df = pd.concat([df, record_data], ignore_index=True)
+    
+    df_combined = pd.concat([record_data, df_existing], ignore_index=True)
     
     try:
-        df.to_excel(DATA_PATH, index=False, engine='openpyxl')
-        print(f"Record {record['id']} created successfully.")
+        df_combined.to_excel(DATA_PATH, index=False, engine='openpyxl')
+        print(f"Record {record['id']} added to the top.")
     except Exception as e:
         print(f"Error saving to Excel: {e}")
 

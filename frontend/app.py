@@ -126,18 +126,15 @@ with tab3:
         st.error(f"Could not load history: {r.status_code} - {r.text}")'''
 
 with tab3:
-    st.subheader("History (from Excel)")
-    if st.button("Refresh History"):
-        r = requests.get(f"{API_URL}/history?limit=50")
+    st.subheader("History (Newest First)")
+    if st.button("Load/Refresh History"):
+        r = requests.get(f"{API_URL}/history")
         if r.status_code == 200:
             data = r.json()
             if data:
                 df = pd.DataFrame(data)
                 if 'timestamp' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['timestamp'])
                     df = df.sort_values(by='timestamp', ascending=False)
                 
                 st.dataframe(df, use_container_width=True)
-            else:
-                st.info("No records yet.")
-        else:
-            st.error("Could not load history.")
