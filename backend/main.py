@@ -8,6 +8,8 @@ load_dotenv()
 import json
 import uuid
 import datetime
+import os
+import pandas as pd
 
 
 app = FastAPI()
@@ -98,7 +100,7 @@ def predict(req: PredictRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/analyze_url")
+'''@app.post("/analyze_url")
 def analyze_url(req: ScrapeRequest):
     """
     URL -> scrape -> predict -> store in Excel -> return result
@@ -123,10 +125,35 @@ def analyze_url(req: ScrapeRequest):
 
         return result
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Analyze URL failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Analyze URL failed: {str(e)}")'''
 
+@app.post("/analyze_url")
+def analyze_url(req: ScrapeRequest):
+    try:
+        article = scrape_article(req.url)
+        result = judge_news(article["text"]) 
+        
+        record_id = str(uuid.uuid4())[:8] 
+        
+        record = {
+            "id": record_id,
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "input_type": "url",
+            "url": article["url"],
+            "title": article["title"],
+            "text": article["text"],
+            "label": result['label'],
+            "confidence": result['confidence'],
+            "explanation": result['explanation'],
+            "reviewer_feedback": ""
+        }
+        append_record(record)
 
-@app.get("/history")
+        return {**result, "id": record_id} 
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+'''@app.get("/history")
 def history(limit: int = 50):
     try:
         df = read_history(limit=limit)
@@ -140,10 +167,22 @@ def history(limit: int = 50):
     
     except Exception as e:
         print(f"Error loading history: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))'''
+
+@app.get("/history")
+def history(limit: int = 50):
+    try:
+        from backend.storage import DATA_PATH
+        if not os.path.exists(DATA_PATH):
+            return []
+        
+        df = pd.read_excel(DATA_PATH)
+        df = df.fillna("") 
+        
+        return df.tail(limit).to_dict(orient="records")
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-import datetime
-import uuid
 
 class FinalRecordRequest(BaseModel):
     text: str

@@ -7,7 +7,7 @@ API_URL = "http://127.0.0.1:8000"
 
 tab1, tab2, tab3 = st.tabs(["Analyze by URL", "Paste text", "History"])
 
-# Tab 1: Analyze by URL
+'''# Tab 1: Analyze by URL
 with tab1:
     st.subheader("Analyze by URL")
     url = st.text_input("Paste news link here")
@@ -18,7 +18,44 @@ with tab1:
             st.success("Done")
             st.json(r.json())
         else:
-            st.error(r.json())
+            st.error(r.json())'''
+
+# Tab 1: Analyze by URL
+with tab1:
+    st.subheader("Analyze by URL")
+    url = st.text_input("Paste news link here", key="url_input")
+
+    if st.button("Fetch + Analyze URL"):
+        with st.spinner("Scraping and Analyzing..."):
+            r = requests.post(f"{API_URL}/analyze_url", json={"url": url})
+            if r.status_code == 200:
+                st.session_state['url_analysis'] = r.json()
+            else:
+                st.error("Failed to analyze URL.")
+
+    if 'url_analysis' in st.session_state:
+        res = st.session_state['url_analysis']
+        
+        st.markdown("---")
+        st.success(f"**Prediction:** {res['label']}")
+        st.write(f"**Confidence:** {res['confidence']}")
+        st.write(f"**Explanation:** {res.get('explanation', 'N/A')}")
+        
+        with st.expander("📝 Add Reviewer Feedback for this URL"):
+            url_fb = st.text_area("Your comment:", value="", key="url_fb_box")
+            
+            if st.button("Save URL Feedback"):
+                payload = {
+                    "id": res.get('id'), 
+                    "feedback": url_fb
+                }
+                resp = requests.post(f"{API_URL}/update_feedback", json=payload)
+                if resp.status_code == 200:
+                    st.success("Feedback saved for this URL!")
+                    del st.session_state['url_analysis']
+                    st.rerun()
+                else:
+                    st.error("Error saving feedback.")
 
 
 # Tab 2: Paste news text
@@ -68,7 +105,7 @@ with tab2:
                     st.success("Feedback added to the same row in Excel!")
                     del st.session_state['last_analysis']
                     st.rerun()
-# Tab 3:
+'''# Tab 3:
 with tab3:
     st.subheader("History (from Excel)")
     r = requests.get(f"{API_URL}/history?limit=50")
@@ -80,5 +117,21 @@ with tab3:
         else:
             st.info("No records yet.")
     else:
-        st.error(f"Could not load history: {r.status_code} - {r.text}")
+        st.error(f"Could not load history: {r.status_code} - {r.text}")'''
 
+with tab3:
+    st.subheader("History (from Excel)")
+    if st.button("Refresh History"):
+        r = requests.get(f"{API_URL}/history?limit=50")
+        if r.status_code == 200:
+            data = r.json()
+            if data:
+                df = pd.DataFrame(data)
+                if 'timestamp' in df.columns:
+                    df = df.sort_values(by='timestamp', ascending=False)
+                
+                st.dataframe(df, use_container_width=True)
+            else:
+                st.info("No records yet.")
+        else:
+            st.error("Could not load history.")
