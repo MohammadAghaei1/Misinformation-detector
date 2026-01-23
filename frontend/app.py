@@ -126,18 +126,16 @@ with tab3:
         st.error(f"Could not load history: {r.status_code} - {r.text}")'''
 
 with tab3:
-    st.subheader("History (Newest First)")
+    st.subheader("History (Automated View)")
     
-    try:
-        r = requests.get(f"{API_URL}/history?limit=50")
-        if r.status_code == 200:
-            data = r.json()
-            if data:
-                df = pd.DataFrame(data)
-                st.dataframe(df, use_container_width=True, height=600)
-            else:
-                st.info("No records found in history.")
+    r = requests.get(f"{API_URL}/history?limit=50")
+    
+    if r.status_code == 200:
+        data = r.json()
+        if data:
+            df = pd.DataFrame(data)
+            st.dataframe(df, use_container_width=True, height=500)
         else:
-            st.error(f"Could not load history: {r.status_code}")
-    except Exception as e:
-        st.error(f"Connection error: {e}")
+            st.info("No records yet.")
+    else:
+        st.error(f"Could not load history: {r.status_code}")
