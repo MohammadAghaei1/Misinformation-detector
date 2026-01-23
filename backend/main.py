@@ -1,11 +1,14 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from backend.scraping import scrape_article
-from backend.storage import append_record, read_history
+from backend.storage import append_record, read_history, update_record_feedback
 from backend.llm_judge import judge_news
 from dotenv import load_dotenv
 load_dotenv()
 import json
+import uuid
+import datetime
+
 
 app = FastAPI()
 
@@ -32,7 +35,7 @@ def scrape(req: ScrapeRequest):
         raise HTTPException(status_code=400, detail=f"Scraping failed: {str(e)}")
 
 
-@app.post("/predict")
+'''@app.post("/predict")
 def predict(req: PredictRequest):
     try:
         result = judge_news(req.text)
@@ -63,7 +66,45 @@ def predict(req: PredictRequest):
         }
 
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))'''
+    
+
+@app.post("/predict")
+def predict(req: PredictRequest):
+    try:
+        result = judge_news(req.text)
+        record_id = str(uuid.uuid4())[:8] 
+        
+        record = {
+            "id": record_id,
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "input_type": "text",
+            "url": "",
+            "title": "N/A",
+            "text": req.text,
+            "label": result.get("label"),
+            "confidence": result.get("confidence"),
+            "explanation": result.get("explanation"),
+            "reviewer_feedback": "" 
+        }
+        append_record(record) 
+        
+        return {
+            "id": record_id,
+            "label": result.get("label"),
+            "confidence": result.get("confidence"),
+            "explanation": result.get("explanation")
+        }
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/update_feedback")
+def update_feedback(data: dict):
+    from backend.storage import update_record_feedback
+    success = update_record_feedback(data['id'], data['feedback'])
+    if success:
+        return {"status": "success"}
+    raise HTTPException(status_code=404, detail="Record not found")
 
 @app.post("/analyze_url")
 def analyze_url(req: ScrapeRequest):

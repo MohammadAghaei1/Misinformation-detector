@@ -57,3 +57,17 @@ def read_history(limit: int = 50):
         print(f"Error reading history from Excel: {str(e)}") 
         raise e
 
+def update_record_feedback(record_id, feedback_text):
+    file_path = "news.xlsx" 
+    try:
+        df = pd.read_excel(file_path)
+        df['id'] = df['id'].astype(str)
+        
+        if record_id in df['id'].values:
+            df.loc[df['id'] == str(record_id), 'reviewer_feedback'] = feedback_text
+            df.to_excel(file_path, index=False)
+            return True
+        return False
+    except Exception as e:
+        print(f"Error updating excel: {e}")
+        return False
