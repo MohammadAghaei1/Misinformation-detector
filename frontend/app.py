@@ -76,35 +76,41 @@ with tab1:
 
 # Tab 2: Paste news text
 with tab2:
-    st.subheader("Analyze Text & Feedback")
-    text_input = st.text_area("Paste news text here", key="text_input")
+    st.subheader("Analyze News Text")
+    news_text = st.text_area("Paste news text here", height=200, key="news_text_area")
 
-    if st.button("Analyze Text"):
-        if text_input:
-            r = requests.post(f"{API_URL}/predict", json={"text": text_input})
-            if r.status_code == 200:
-                st.session_state['last_analysis'] = r.json()
-            else:
-                st.error("Error in analysis")
+    if st.button("Analyze Text Content"):
+        if news_text:
+            with st.spinner("Analyzing text..."):
+                r = requests.post(f"{API_URL}/predict", json={"text": news_text})
+                if r.status_code == 200:
+                    st.session_state['text_analysis'] = r.json()
+                else:
+                    st.error(f"Analysis failed: {r.text}")
 
-    if 'last_analysis' in st.session_state:
-        res = st.session_state['last_analysis']
+    if 'text_analysis' in st.session_state:
+        res_text = st.session_state['text_analysis']
         
-        st.info(f"**Model Verdict:** {res['label']} ({res['confidence']}%)")
+        st.markdown("---")
+        st.info(f"**Prediction:** {res_text['label']} | **Confidence:** {res_text['confidence']}")
+        st.write(f"**Explanation:** {res_text.get('explanation', 'N/A')}")
         
-        with st.expander("📝 Add Reviewer Feedback to this record"):
-            feedback_value = st.text_area("Your thoughts:", value="", key="fb_input")
+        with st.expander("📝 Add Feedback for this Text"):
+            text_fb = st.text_area("Your comment:", value="", key="text_fb_box")
             
-            if st.button("Save Feedback to Excel"):
-                update_data = {
-                    "id": res['id'], 
-                    "feedback": feedback_value
+            if st.button("Save Text Feedback"):
+                feedback_payload = {
+                    "id": res_text.get('id'), 
+                    "feedback": text_fb
                 }
-                up_r = requests.post(f"{API_URL}/update_feedback", json=update_data)
-                if up_r.status_code == 200:
-                    st.success("Feedback added to the same row in Excel!")
-                    del st.session_state['last_analysis']
+                resp = requests.post(f"{API_URL}/update_feedback", json=feedback_payload)
+                
+                if resp.status_code == 200:
+                    st.success("Feedback saved for this text record!")
+                    del st.session_state['text_analysis']
                     st.rerun()
+                else:
+                    st.error("Could not update feedback in Excel.")
 '''# Tab 3:
 with tab3:
     st.subheader("History (from Excel)")
