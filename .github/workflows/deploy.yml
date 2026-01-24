@@ -30,7 +30,7 @@ jobs:
         run: |
           echo "HF_TOKEN=$HF_TOKEN" > .env
           echo "HF_MODEL=$HF_MODEL" >> .env
-          docker build -t $ECR_REGISTRY/misinfo_repo:latest .
+          docker build --no-cache -t $ECR_REGISTRY/misinfo_repo:latest .
           docker push $ECR_REGISTRY/misinfo_repo:latest
 
       - name: Update EC2 Container via SSH
@@ -41,7 +41,17 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 527582557235.dkr.ecr.us-east-1.amazonaws.com
+            
             docker pull 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest
+            
             docker stop misinfo_service || true
             docker rm misinfo_service || true
-            docker run -d -p 8000:8000 -p 8501:8501 --name misinfo_service 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest
+            
+            docker image prune -f
+            
+            docker run -d \
+              -p 8000:8000 \
+              -p 8501:8501 \
+              --name misinfo_service \
+              --restart always \
+              527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest

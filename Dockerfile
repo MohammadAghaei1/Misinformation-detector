@@ -1,18 +1,21 @@
-# Use the base Python image
+# استفاده از نسخه سبک پایتون
 FROM python:3.10-slim
 
-# Set the working directory inside the container
+# تنظیم پوشه کاری
 WORKDIR /app
 
-# Copy all files into the container
-COPY . /app
+# ۱. اول فقط فایل نیازمندی‌ها را کپی می‌کنیم
+COPY requirements.txt .
 
-# Install the project dependencies from the requirements.txt file
+# ۲. نصب کتابخانه‌ها (این لایه فقط وقتی requirements تغییر کند دوباره اجرا می‌شود)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose ports 8000 for FastAPI and 8501 for Streamlit
+# ۳. حالا کل پروژه را کپی می‌کنیم (تغییرات کد شما در این مرحله اعمال می‌شود)
+COPY . .
+
+# اکسپوز کردن پورت‌ها
 EXPOSE 8000
 EXPOSE 8501
 
-# Command to run both FastAPI and Streamlit using JSON array format
-CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port 8000 & streamlit run frontend/app.py"]
+# اجرای همزمان بک‌اند و فرانت
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port 8000 & streamlit run frontend/app.py --server.port 8501 --server.address 0.0.0.0"]
