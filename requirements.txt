@@ -8,3 +8,6 @@ beautifulsoup4
 python-dotenv
 pydantic
 huggingface_hub
+pytest
+pytest-asyncio
+httpx
