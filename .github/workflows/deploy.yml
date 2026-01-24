@@ -11,7 +11,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # --- Step 1: Set up Environment and Run Tests ---
+      # Step 1: Set up Environment and Run Tests
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -29,7 +29,7 @@ jobs:
           # If tests fail, the workflow stops here and won't deploy
           pytest test_main.py
 
-      # --- Step 2: Configure AWS and Build Image ---
+      # Step 2: Configure AWS and Build Image
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -53,7 +53,7 @@ jobs:
           docker build --no-cache -t $ECR_REGISTRY/misinfo_repo:latest .
           docker push $ECR_REGISTRY/misinfo_repo:latest
 
-      # --- Step 3: Deploy to EC2 via SSH ---
+      # Step 3: Deploy to EC2 via SSH 
       - name: Update EC2 Container via SSH
         uses: appleboy/ssh-action@master
         with:
