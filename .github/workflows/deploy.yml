@@ -11,7 +11,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # AUTOMATED TESTING 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -27,10 +26,8 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_MODEL: ${{ secrets.HF_MODEL }}
         run: |
-          # If tests fail, the deployment will stop here to protect your server
           pytest test_main.py
 
-      # BUILD AND PUSH TO ECR
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -50,33 +47,25 @@ jobs:
         run: |
           echo "HF_TOKEN=$HF_TOKEN" > .env
           echo "HF_MODEL=$HF_MODEL" >> .env
-          # --no-cache ensures Docker doesn't use old code layers
           docker build --no-cache -t $ECR_REGISTRY/misinfo_repo:latest .
           docker push $ECR_REGISTRY/misinfo_repo:latest
 
-      # DEPLOY TO EC2 WITH VOLUME
-      - name: Update EC2 Container via SSH
+      - name: Deploy to Kubernetes via SSH
         uses: appleboy/ssh-action@master
         with:
           host: 98.92.82.192
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 527582557235.dkr.ecr.us-east-1.amazonaws.com
+            cd ~
+            if [ -d "Misinformation-detector" ]; then
+              cd Misinformation-detector && git pull origin main
+            else
+              git clone https://github.com/MohammadAghaei1/Misinformation-detector.git && cd Misinformation-detector
+            fi
             
-            # Stop and clean up old container
-            docker stop misinfo_service || true
-            docker rm misinfo_service || true
-            docker rmi 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest || true
+            mkdir -p /home/ec2-user/misinfo_data
             
-            docker pull 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest
-            
-            # RUN WITH PERSISTENT VOLUME
-            # Maps the host directory to the container's data folder
-            docker run -d \
-              -p 8000:8000 \
-              -p 8501:8501 \
-              --name misinfo_service \
-              --restart always \
-              -v /home/ec2-user/misinfo_data:/app/data \
-              527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest
+            sudo kubectl apply -f k8s_deployment.yaml
+            sudo kubectl rollout restart deployment/misinfo-app
+            sudo kubectl get pods
