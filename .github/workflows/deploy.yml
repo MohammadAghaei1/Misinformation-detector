@@ -11,6 +11,26 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # --- Step 1: Set up Environment and Run Tests ---
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Testing Dependencies
+        run: |
+          pip install pytest pytest-asyncio httpx fastapi uvicorn python-dotenv huggingface_hub
+          pip install -r requirements.txt
+
+      - name: Run Automated Tests
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_MODEL: ${{ secrets.HF_MODEL }}
+        run: |
+          # If tests fail, the workflow stops here and won't deploy
+          pytest test_main.py
+
+      # --- Step 2: Configure AWS and Build Image ---
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -22,7 +42,7 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and Push Image
+      - name: Build and Push Docker Image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -30,9 +50,11 @@ jobs:
         run: |
           echo "HF_TOKEN=$HF_TOKEN" > .env
           echo "HF_MODEL=$HF_MODEL" >> .env
+          # Force a clean build to ensure code updates are applied
           docker build --no-cache -t $ECR_REGISTRY/misinfo_repo:latest .
           docker push $ECR_REGISTRY/misinfo_repo:latest
 
+      # --- Step 3: Deploy to EC2 via SSH ---
       - name: Update EC2 Container via SSH
         uses: appleboy/ssh-action@master
         with:
@@ -40,12 +62,15 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            # Login to ECR on the server
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 527582557235.dkr.ecr.us-east-1.amazonaws.com
             
+            # Stop and remove old container and image to avoid caching issues
             docker stop misinfo_service || true
             docker rm misinfo_service || true
             docker rmi 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest || true
             
+            # Pull the fresh image and run it
             docker pull 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest
             
             docker run -d \
