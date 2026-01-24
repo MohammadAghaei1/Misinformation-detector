@@ -1,39 +1,66 @@
-import streamlit as st
 import requests
 import pandas as pd
+import streamlit as st
+import plotly.express as px
 
-# Set page configuration
 st.set_page_config(page_title="Misinformation Detector", layout="wide")
 
-# Change this to your EC2 IP or domain in production
+# Change this to your EC2 IP in production
 API_URL = "http://127.0.0.1:8000" 
 
 # DASHBOARD SECTION 
 st.title("🛡️ Misinformation Analysis Dashboard")
 
 try:
-    # Fetch real-time stats from the new endpoint
     stats_r = requests.get(f"{API_URL}/stats")
     if stats_r.status_code == 200:
         stats = stats_r.json()
         total = stats.get("total", 0)
-        percent = stats.get("percent", 0)
-        
-        # Display as metric cards
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Total Analyzed", total)
-        m2.metric("Fake News Ratio", f"{percent}%")
-        m3.metric("System Status", "Online ✅")
-        
-        # Simple progress bar for visual impact
-        st.write(f"**Fake Content Distribution ({percent}%)**")
-        st.progress(percent / 100)
-except:
-    st.warning("⚠️ Dashboard stats temporarily unavailable (Check backend connection).")
+        fake_p = stats.get("fake_percent", 0)
+        real_p = stats.get("real_percent", 0)
+
+        col_metrics, col_chart = st.columns([3, 1])
+
+        with col_metrics:
+            st.markdown("###  Key Performance Metrics")
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total Analyzed", total)
+            m2.metric("Fake News Ratio", f"{fake_p}%", delta=f"{fake_p}%", delta_color="inverse")
+            m3.metric("Real News Ratio", f"{real_p}%", delta=f"{real_p}%", delta_color="normal")
+            m4.metric("System Status", "Online ✅")
+
+        with col_chart:
+            if total > 0:
+                st.markdown("<div style='padding-top: 20px;'></div>", unsafe_allow_html=True)
+                
+                chart_df = pd.DataFrame({
+                    "Category": ["Fake", "Real"],
+                    "Percentage": [fake_p, real_p]
+                })
+                fig = px.pie(
+                    chart_df, 
+                    values='Percentage', 
+                    names='Category', 
+                    hole=0.6, 
+                    color='Category',
+                    color_discrete_map={'Fake': '#EF553B', 'Real': '#00CC96'}
+                )
+                
+                fig.update_layout(
+                    margin=dict(l=0, r=50, t=0, b=0),
+                    height=200,
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No data available yet.")
+except Exception as e:
+    st.warning("⚠️ Dashboard unavailable.")
 
 st.divider()
 
-# ORIGINAL TABS SECTION
+# TABS SECTION
 tab1, tab2, tab3 = st.tabs(["Analyze by URL", "Paste text", "History"])
 
 with tab1:
@@ -89,40 +116,26 @@ with tab2:
                 st.rerun()
 
 with tab3:
-    st.subheader("History")
-    # Fetch records from backend
+    st.subheader("Analysis History")
     try:
         r = requests.get(f"{API_URL}/history?limit=50")
-        
         if r.status_code == 200:
             data = r.json()
             if data and len(data) > 0:
-                # Only show the dataframe if there's actually data
-                st.dataframe(pd.DataFrame(data), use_container_width=True, height=500)
+                st.dataframe(pd.DataFrame(data), use_container_width=True, height=400)
                 
+                # Danger Zone: Clear History
                 st.divider()
                 with st.expander("🗑️ Danger Zone"):
-                    st.warning("This action cannot be undone!")
-                    confirm = st.checkbox("I confirm that I want to delete all history")
+                    st.warning("This action will permanently delete all records!")
+                    confirm = st.checkbox("Confirm deletion")
                     if st.button("🚨 Clear All Records"):
                         if confirm:
                             res = requests.post(f"{API_URL}/clear_history")
                             if res.status_code == 200:
-                                st.success("Database cleared successfully!")
-                                # Use st.rerun() to refresh the UI
+                                st.success("Database cleared!")
                                 st.rerun()
-                            else:
-                                st.error("Failed to clear database.")
-                        else:
-                            st.info("Please check the confirmation box first.")
             else:
-                # This replaces the red error when the database is empty
                 st.info("No records found. The database is empty.")
-        else:
-            st.error(f"Backend returned an error: {r.status_code}")
-
-    except requests.exceptions.ConnectionError:
-        st.error("Could not connect to the backend server. Is it running?")
-    except Exception as e:
-        # Only show other types of errors, not empty data
-        st.error(f"An unexpected error occurred: {e}")
+    except:
+        st.error("Connection Error with Backend")

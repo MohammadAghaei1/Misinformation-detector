@@ -70,18 +70,28 @@ def check_cache(news_text: str):
     return df.iloc[0].to_dict() if not df.empty else None
 
 def get_stats_data():
-    "IDEA 3: Data for Dashboard"
+    'Calculate metrics for both Fake and Real news'
     ensure_db_exists()
     conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql("SELECT label FROM news_history", conn)
-    conn.close()
-    total = len(df)
-    fake_count = len(df[df['label'].str.lower() == 'fake']) if total > 0 else 0
-    percent = round((fake_count / total) * 100, 1) if total > 0 else 0
-    return {"total": total, "percent": percent}
+    try:
+        df = pd.read_sql("SELECT label FROM news_history", conn)
+        total = len(df)
+        if total == 0:
+            return {"total": 0, "fake_percent": 0, "real_percent": 0}
+        
+        # Standardizing label names for calculation
+        fake_count = len(df[df['label'].str.lower().str.contains('fake', na=False)])
+        real_count = len(df[df['label'].str.lower().str.contains('real', na=False)])
+        
+        fake_p = round((fake_count / total) * 100, 1)
+        real_p = round((real_count / total) * 100, 1)
+        
+        return {"total": total, "fake_percent": fake_p, "real_percent": real_p}
+    finally:
+        conn.close()
 
 def clear_all_history():
-    """Danger: This will delete all records from the database"""
+    "Danger: This will delete all records from the database"
     ensure_db_exists()
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()

@@ -49,7 +49,7 @@ def scrape(req: ScrapeRequest):
 @app.post("/predict")
 def predict(req: PredictRequest):
     try:
-        # --- IDEA 2: CHECK CACHE FIRST ---
+        # CHECK CACHE FIRST
         cached = check_cache(req.text)
         if cached:
             return {**cached, "id": "CACHED", "source": "database"}
@@ -90,7 +90,6 @@ def analyze_url(req: ScrapeRequest):
         result = judge_news(article["text"]) 
         
         record_id = str(uuid.uuid4())[:8] 
-        # (بقیه کد برای ذخیره رکورد جدید...)
         record = {
             "id": record_id,
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
