@@ -1,72 +1,90 @@
-import os
+import sqlite3
 import pandas as pd
+import os
 from datetime import datetime
 import numpy as np
 
-DATA_PATH = os.path.join("data", "news.xlsx")
+# Use a data folder that will be mapped to Docker Volume
+DB_PATH = os.path.join("data", "news_database.db")
 
-def ensure_file_exists():
+def ensure_db_exists():
+    "Create database and table if they don't exist"
     os.makedirs("data", exist_ok=True)
-    if not os.path.exists(DATA_PATH):
-        columns = [
-            "id", "timestamp", "input_type", "url", "title", "text", 
-            "label", "confidence", "explanation", "reviewer_feedback"
-        ]
-        df = pd.DataFrame(columns=columns)
-        df.to_excel(DATA_PATH, index=False, engine='openpyxl')
-
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS news_history (
+            id TEXT PRIMARY KEY,
+            timestamp TEXT,
+            input_type TEXT,
+            url TEXT,
+            title TEXT,
+            text TEXT,
+            label TEXT,
+            confidence REAL,
+            explanation TEXT,
+            reviewer_feedback TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
 def append_record(record: dict):
-    ensure_file_exists()
-    df_existing = pd.read_excel(DATA_PATH, engine='openpyxl')
-
-    record = {key: (value if not isinstance(value, float) or not np.isnan(value) else None) 
-              for key, value in record.items()}
-
-    if "id" not in record or record["id"] is None:
-        record["id"] = len(df_existing) + 1
-    
-    if "timestamp" not in record:
-        record["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    columns = [
-        "id", "timestamp", "input_type", "url", "title", "text", 
-        "label", "confidence", "explanation", "reviewer_feedback"
-    ]
-    
-    df_new = pd.DataFrame([record], columns=columns)
-    
-    # New record goes to the bottom
-    df_final = pd.concat([df_existing, df_new], ignore_index=True)
-    
-    try:
-        df_final.to_excel(DATA_PATH, index=False, engine='openpyxl')
-    except Exception as e:
-        print(f"Error: {e}")
+    "Save record to SQLite"
+    ensure_db_exists()
+    conn = sqlite3.connect(DB_PATH)
+    # Convert dict to DataFrame for easy SQL insertion
+    df = pd.DataFrame([record])
+    df.to_sql("news_history", conn, if_exists="append", index=False)
+    conn.close()
 
 def read_history(limit: int = 50):
-    ensure_file_exists()
-    try:
-        df = pd.read_excel(DATA_PATH, engine='openpyxl')
-        
-        df = df.where(pd.notnull(df), None)
+    "Read history for Streamlit"
+    ensure_db_exists()
+    conn = sqlite3.connect(DB_PATH)
+    query = f"SELECT * FROM news_history ORDER BY timestamp DESC LIMIT {limit}"
+    df = pd.read_sql(query, conn)
+    conn.close()
+    return df
 
-        return df.tail(limit) 
-    except Exception as e:
-        raise e
+def update_record_feedback(record_id: str, feedback_text: str):
+    "Update feedback column"
+    ensure_db_exists()
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE news_history SET reviewer_feedback = ? WHERE id = ?", (feedback_text, record_id))
+    success = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return success
 
-def update_record_feedback(record_id, feedback_text):
-    ensure_file_exists()
-    try:
-        df = pd.read_excel(DATA_PATH, engine='openpyxl')
-        df['id'] = df['id'].astype(str)
-        
-        target_id = str(record_id)
-        
-        if target_id in df['id'].values:
-            df.loc[df['id'] == target_id, 'reviewer_feedback'] = feedback_text
-            df.to_excel(DATA_PATH, index=False, engine='openpyxl')
-            return True
-        return False
-    except Exception as e:
-        return False
+def check_cache(news_text: str):
+    "Normalize text and check if it exists in the database"
+    ensure_db_exists()
+    conn = sqlite3.connect(DB_PATH)
+    # Strip whitespaces and newlines for a more robust match
+    cleaned_text = news_text.strip()
+    query = "SELECT id, label, confidence, explanation FROM news_history WHERE TRIM(text) = ? LIMIT 1"
+    df = pd.read_sql(query, conn, params=(cleaned_text,))
+    conn.close()
+    return df.iloc[0].to_dict() if not df.empty else None
+
+def get_stats_data():
+    "IDEA 3: Data for Dashboard"
+    ensure_db_exists()
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql("SELECT label FROM news_history", conn)
+    conn.close()
+    total = len(df)
+    fake_count = len(df[df['label'].str.lower() == 'fake']) if total > 0 else 0
+    percent = round((fake_count / total) * 100, 1) if total > 0 else 0
+    return {"total": total, "percent": percent}
+
+def clear_all_history():
+    """Danger: This will delete all records from the database"""
+    ensure_db_exists()
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM news_history")
+    conn.commit()
+    conn.close()

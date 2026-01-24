@@ -11,7 +11,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Step 1: Set up Environment and Run Tests
+      # AUTOMATED TESTING 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -19,6 +19,7 @@ jobs:
 
       - name: Install Testing Dependencies
         run: |
+          pip install pytest pytest-asyncio httpx fastapi uvicorn python-dotenv huggingface_hub pandas openpyxl
           pip install -r requirements.txt
 
       - name: Run Automated Tests
@@ -26,10 +27,10 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_MODEL: ${{ secrets.HF_MODEL }}
         run: |
-          # If tests fail, the workflow stops here and won't deploy
+          # If tests fail, the deployment will stop here to protect your server
           pytest test_main.py
 
-      # Step 2: Configure AWS and Build Image
+      # BUILD AND PUSH TO ECR
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -41,7 +42,7 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and Push Docker Image
+      - name: Build and Push Image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -49,11 +50,11 @@ jobs:
         run: |
           echo "HF_TOKEN=$HF_TOKEN" > .env
           echo "HF_MODEL=$HF_MODEL" >> .env
-          # Force a clean build to ensure code updates are applied
+          # --no-cache ensures Docker doesn't use old code layers
           docker build --no-cache -t $ECR_REGISTRY/misinfo_repo:latest .
           docker push $ECR_REGISTRY/misinfo_repo:latest
 
-      # Step 3: Deploy to EC2 via SSH 
+      # DEPLOY TO EC2 WITH VOLUME
       - name: Update EC2 Container via SSH
         uses: appleboy/ssh-action@master
         with:
@@ -61,20 +62,21 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Login to ECR on the server
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 527582557235.dkr.ecr.us-east-1.amazonaws.com
             
-            # Stop and remove old container and image to avoid caching issues
+            # Stop and clean up old container
             docker stop misinfo_service || true
             docker rm misinfo_service || true
             docker rmi 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest || true
             
-            # Pull the fresh image and run it
             docker pull 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest
             
+            # RUN WITH PERSISTENT VOLUME
+            # Maps the host directory to the container's data folder
             docker run -d \
               -p 8000:8000 \
               -p 8501:8501 \
               --name misinfo_service \
               --restart always \
+              -v /home/ec2-user/misinfo_data:/app/data \
               527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest

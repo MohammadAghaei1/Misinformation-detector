@@ -1,16 +1,16 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from backend.scraping import scrape_article
-from backend.storage import append_record, update_record_feedback
+from backend.storage import append_record, clear_all_history, update_record_feedback, read_history, check_cache, get_stats_data
 from backend.llm_judge import judge_news
 from dotenv import load_dotenv
-load_dotenv()
 import json
 import uuid
 import datetime
 import os
 import pandas as pd
 
+load_dotenv()
 
 app = FastAPI()
 
@@ -22,7 +22,12 @@ class ScrapeRequest(BaseModel):
     
 class FeedbackRequest(BaseModel):
     id: str
-    feedback: str    
+    feedback: str   
+
+# DASHBOARD ENDPOINT 
+@app.get("/stats")
+def get_stats():
+    return get_stats_data() 
 
 
 @app.get("/health")
@@ -40,9 +45,15 @@ def scrape(req: ScrapeRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Scraping failed: {str(e)}")
 
+
 @app.post("/predict")
 def predict(req: PredictRequest):
     try:
+        # --- IDEA 2: CHECK CACHE FIRST ---
+        cached = check_cache(req.text)
+        if cached:
+            return {**cached, "id": "CACHED", "source": "database"}
+        
         result = judge_news(req.text)
         record_id = str(uuid.uuid4())[:8]
         
@@ -58,26 +69,28 @@ def predict(req: PredictRequest):
             "explanation": result.get("explanation"),
             "reviewer_feedback": "" 
         }
-        
         append_record(record)
-        
-        return {
-            "id": record_id,
-            "label": result.get("label"),
-            "confidence": result.get("confidence"),
-            "explanation": result.get("explanation")
-        }
+        return {"id": record_id, **result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/analyze_url")
 def analyze_url(req: ScrapeRequest):
     try:
+        # 1. First, scrape the article content
         article = scrape_article(req.url)
+        
+        # 2. CHECK CACHE with the scraped text before running the model
+        cached = check_cache(article["text"])
+        if cached:
+            return {**cached, "source": "database"} # Returns instantly if found
+
+        # 3. If not in cache, run the AI judge
         result = judge_news(article["text"]) 
         
         record_id = str(uuid.uuid4())[:8] 
-        
+        # (بقیه کد برای ذخیره رکورد جدید...)
         record = {
             "id": record_id,
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -91,13 +104,7 @@ def analyze_url(req: ScrapeRequest):
             "reviewer_feedback": ""
         }
         append_record(record)
-
-        return {
-            "id": record_id,
-            "label": result.get('label'),
-            "confidence": result.get('confidence'),
-            "explanation": result.get('explanation')
-        }
+        return {"id": record_id, **result}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -147,3 +154,11 @@ def update_feedback(req: FeedbackRequest):
         return {"status": "success"}
     else:
         raise HTTPException(status_code=404, detail="Record not found")
+    
+@app.post("/clear_history")
+def clear_history():
+    try:
+        clear_all_history()
+        return {"status": "success", "message": "All history cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
