@@ -42,12 +42,11 @@ jobs:
           script: |
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 527582557235.dkr.ecr.us-east-1.amazonaws.com
             
-            docker pull 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest
-            
             docker stop misinfo_service || true
             docker rm misinfo_service || true
+            docker rmi 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest || true
             
-            docker image prune -f
+            docker pull 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest
             
             docker run -d \
               -p 8000:8000 \
