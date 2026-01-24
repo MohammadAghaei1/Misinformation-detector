@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: misinfo-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: backend:v2 
+        imagePullPolicy: Never 
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - name: sqlite-storage
+          mountPath: /app/backend/storage
+      volumes:
+      - name: sqlite-storage
+        hostPath:
+          path: /c/Classes/AI Engineering System/Misinfo_project/misinfo_data

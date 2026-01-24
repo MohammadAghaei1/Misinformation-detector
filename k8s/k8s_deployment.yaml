@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: misinfo-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: misinformation
+  template:
+    metadata:
+      labels:
+        app: misinformation
+    spec:
+      containers:
+      - name: backend
+        image: 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - name: sqlite-storage
+          mountPath: /app/backend/storage
+      imagePullSecrets:
+      - name: ecr-secret 
+      volumes:
+      - name: sqlite-storage
+        hostPath:
+          path: /home/ec2-user/misinfo_data 
