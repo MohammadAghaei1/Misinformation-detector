@@ -70,23 +70,33 @@ def check_cache(news_text: str):
     return df.iloc[0].to_dict() if not df.empty else None
 
 def get_stats_data():
-    'Calculate metrics for both Fake and Real news'
     ensure_db_exists()
     conn = sqlite3.connect(DB_PATH)
     try:
         df = pd.read_sql("SELECT label FROM news_history", conn)
         total = len(df)
         if total == 0:
-            return {"total": 0, "fake_percent": 0, "real_percent": 0}
+            return {
+                "total": 0, 
+                "fake_percent": 0, 
+                "real_percent": 0, 
+                "uncertain_percent": 0
+            }
         
-        # Standardizing label names for calculation
         fake_count = len(df[df['label'].str.lower().str.contains('fake', na=False)])
         real_count = len(df[df['label'].str.lower().str.contains('real', na=False)])
+        uncertain_count = len(df[df['label'].str.lower().str.contains('uncertain', na=False)])
         
         fake_p = round((fake_count / total) * 100, 1)
         real_p = round((real_count / total) * 100, 1)
+        uncertain_p = round((uncertain_count / total) * 100, 1)
         
-        return {"total": total, "fake_percent": fake_p, "real_percent": real_p}
+        return {
+            "total": total, 
+            "fake_percent": fake_p, 
+            "real_percent": real_p, 
+            "uncertain_percent": uncertain_p
+        }
     finally:
         conn.close()
 

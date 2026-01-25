@@ -157,7 +157,10 @@ def update_feedback(req: FeedbackRequest):
 @app.post("/clear_history")
 def clear_history():
     try:
+        # Calling your database function
         clear_all_history()
+        # Returning a clear success message
         return {"status": "success", "message": "All history cleared"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # If something goes wrong with SQLite/Database
+        raise HTTPException(status_code=500, detail=f"Database Error: {str(e)}")
