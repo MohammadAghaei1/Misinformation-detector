@@ -1,52 +1,73 @@
 import os
+import json
+import re
 from huggingface_hub import InferenceClient
+from tavily import TavilyClient
 
-def _get_client() -> InferenceClient:
-    # Load token from .env file
-    token = os.getenv("HF_TOKEN")
-    if not token:
-        raise RuntimeError("HF_TOKEN is missing. Put it in .env")
-    return InferenceClient(token=token)
+def _get_tavily_client():
+    tavily_key = os.getenv("TAVILY_API_KEY")
+    return TavilyClient(api_key=tavily_key)
 
+def _get_hf_client():
+    return InferenceClient(token=os.getenv("HF_TOKEN"))
 
-def judge_news(text: str) -> dict:
+def judge_news(text: str, is_url: bool = False) -> dict:
     model = os.getenv("HF_MODEL", "meta-llama/Llama-3.3-70B-Instruct")
-    client = _get_client()
+    hf_client = _get_hf_client()
+    tavily = _get_tavily_client()
 
-    prompt = (
-        "You are a misinformation detector. Analyze the news text and output ONLY a JSON object with keys:\n"
-        'label (one of "fake", "real", "uncertain"), confidence (0-100 integer), explanation (short string).\n\n'
-        f"News:\n{text}\n"
-    )
-
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": "Return ONLY valid JSON. No extra text."},
-            {"role": "user", "content": prompt},
-        ],
-        max_tokens=250,
-        temperature=0.2,
-    )
-
-    print(f"Model response: {resp}")  
-
+    # STEP 1: Gather Proof (Dynamic RAG)
+    search_context = ""
     try:
-        model_output = resp.choices[0].message.content.strip()  
-        print(f"Parsed model output: {model_output}")  
-        model_output = eval(model_output)  
-
-        label = model_output.get("label", "uncertain")
-        confidence = model_output.get("confidence", 0)
-        explanation = model_output.get("explanation", "")
+        # We search the web to see if other sources confirm the text from your scraper
+        search_results = tavily.search(query=text[:200], search_depth="advanced", max_results=3)
+        for res in search_results['results']:
+            search_context += f"- Source: {res['title']}\n  Fact: {res['content']}\n"
     except Exception as e:
-        print(f"Error parsing model output: {e}")
-        label = "uncertain"
-        confidence = 0
-        explanation = "Unable to parse the explanation"
+        search_context = "Search failed, rely on logic."
 
-    return {
-        "label": label,
-        "confidence": confidence,
-        "explanation": explanation
-    }
+    # STEP 2: The "Detective" Prompt
+    # This prompt tells Llama to stop saying "I don't know" and start comparing facts
+    if is_url:
+        role_instruction = "You are analyzing a scraped article from a URL."
+    else:
+        role_instruction = "You are analyzing a raw text claim."
+
+    prompt = f"""
+    {role_instruction}
+    Current Date: January 2026.
+    
+    SEARCH CONTEXT (Real-time facts from the web):
+    {search_context}
+
+    INPUT TEXT TO VERIFY:
+    {text}
+
+    INSTRUCTIONS:
+    1. Compare the INPUT TEXT with the SEARCH CONTEXT.
+    2. If the SEARCH CONTEXT confirms the events, label it 'real'.
+    3. If there is a direct contradiction or no major news outlet reports this, label it 'fake'.
+    4. Trust the SEARCH CONTEXT more than your internal memory.
+
+    Return ONLY JSON:
+    {{
+      "label": "fake" or "real" or "uncertain",
+      "confidence": (0-100),
+      "explanation": "Briefly explain the alignment or contradiction found."
+    }}
+    """
+
+    # STEP 3: Get Llama's verdict
+    resp = hf_client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1
+    )
+
+    # (Keep your existing re.search and json.loads logic here)
+    try:
+        raw_content = resp.choices[0].message.content.strip()
+        json_match = re.search(r'\{.*\}', raw_content, re.DOTALL)
+        return json.loads(json_match.group())
+    except:
+        return {"label": "uncertain", "confidence": 0, "explanation": "Logic analysis failed."}

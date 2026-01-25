@@ -15,8 +15,16 @@ spec:
       containers:
       - name: backend
         image: 527582557235.dkr.ecr.us-east-1.amazonaws.com/misinfo_repo:latest
+        imagePullPolicy: Always
         ports:
-        - containerPort: 8000
+        - containerPort: 8000 
+        env:
+        - name: TAVILY_API_KEY
+          value: ${{ secrets.TAVILY_API_KEY }}
+        - name: HF_TOKEN
+          value: ${{ secrets.HF_TOKEN }}
+        - name: HF_MODEL
+          value: "meta-llama/Llama-3.3-70B-Instruct"
         volumeMounts:
         - name: sqlite-storage
           mountPath: /app/backend/storage
@@ -25,4 +33,5 @@ spec:
       volumes:
       - name: sqlite-storage
         hostPath:
-          path: /home/ec2-user/misinfo_data 
+          path: /home/ec2-user/misinfo_data
+          type: DirectoryOrCreate

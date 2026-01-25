@@ -49,7 +49,6 @@ def scrape(req: ScrapeRequest):
 @app.post("/predict")
 def predict(req: PredictRequest):
     try:
-        # CHECK CACHE FIRST
         cached = check_cache(req.text)
         if cached:
             return {**cached, "id": "CACHED", "source": "database"}
@@ -67,7 +66,7 @@ def predict(req: PredictRequest):
             "label": result.get("label"),
             "confidence": result.get("confidence"),
             "explanation": result.get("explanation"),
-            "reviewer_feedback": "" 
+            "reviewer_feedback": "The user did not post a feedback."
         }
         append_record(record)
         return {"id": record_id, **result}
@@ -78,16 +77,13 @@ def predict(req: PredictRequest):
 @app.post("/analyze_url")
 def analyze_url(req: ScrapeRequest):
     try:
-        # 1. First, scrape the article content
         article = scrape_article(req.url)
         
-        # 2. CHECK CACHE with the scraped text before running the model
         cached = check_cache(article["text"])
         if cached:
-            return {**cached, "source": "database"} # Returns instantly if found
+            return {**cached, "source": "database"}
 
-        # 3. If not in cache, run the AI judge
-        result = judge_news(article["text"]) 
+        result = judge_news(article["text"], is_url=True) 
         
         record_id = str(uuid.uuid4())[:8] 
         record = {
@@ -100,13 +96,13 @@ def analyze_url(req: ScrapeRequest):
             "label": result.get('label'),
             "confidence": result.get('confidence'),
             "explanation": result.get('explanation'),
-            "reviewer_feedback": ""
+            "reviewer_feedback": "The user did not post a feedback."
         }
         append_record(record)
         return {"id": record_id, **result}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
+    
 @app.get("/history")
 def history(limit: int = 50):
     try:
@@ -129,6 +125,10 @@ class FinalRecordRequest(BaseModel):
 @app.post("/save_with_feedback")
 def save_with_feedback(req: FinalRecordRequest):
     try:
+        user_feedback = req.reviewer_feedback.strip()
+        if not user_feedback:
+            user_feedback = "The user did not post a feedback."
+
         record = {
             "id": str(uuid.uuid4())[:8],
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -139,7 +139,7 @@ def save_with_feedback(req: FinalRecordRequest):
             "label": req.label,
             "confidence": req.confidence,
             "explanation": req.explanation,
-            "reviewer_feedback": req.reviewer_feedback
+            "reviewer_feedback": user_feedback
         }
         append_record(record)
         return {"status": "success"} 

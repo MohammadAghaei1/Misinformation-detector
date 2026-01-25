@@ -48,11 +48,17 @@ def read_history(limit: int = 50):
     return df
 
 def update_record_feedback(record_id: str, feedback_text: str):
-    "Update feedback column"
     ensure_db_exists()
+    
+    if not feedback_text or not feedback_text.strip():
+        feedback_text = "The user did not post a feedback."
+        
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("UPDATE news_history SET reviewer_feedback = ? WHERE id = ?", (feedback_text, record_id))
+    cursor.execute(
+        "UPDATE news_history SET reviewer_feedback = ? WHERE id = ?", 
+        (feedback_text, record_id)
+    )
     success = cursor.rowcount > 0
     conn.commit()
     conn.close()

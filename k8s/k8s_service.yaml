@@ -14,6 +14,6 @@ spec:
     - name: frontend-port
       protocol: TCP
       port: 8501
-      targetPort: 8501
+      targetPort: 8501 
       nodePort: 30002
   type: NodePort
