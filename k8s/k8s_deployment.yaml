@@ -20,9 +20,15 @@ spec:
         - containerPort: 8000 
         env:
         - name: TAVILY_API_KEY
-          value: ${{ secrets.TAVILY_API_KEY }}
+          valueFrom:
+            secretKeyRef:
+              name: ecr-secret
+              key: TAVILY_API_KEY
         - name: HF_TOKEN
-          value: ${{ secrets.HF_TOKEN }}
+          valueFrom:
+            secretKeyRef:
+              name: ecr-secret
+              key: HF_TOKEN
         - name: HF_MODEL
           value: "meta-llama/Llama-3.3-70B-Instruct"
         volumeMounts:
