@@ -25,6 +25,7 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_MODEL: ${{ secrets.HF_MODEL }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }} 
         run: |
           pytest test_main.py
 
@@ -44,9 +45,11 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_MODEL: ${{ secrets.HF_MODEL }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }} 
         run: |
           echo "HF_TOKEN=$HF_TOKEN" > .env
           echo "HF_MODEL=$HF_MODEL" >> .env
+          echo "TAVILY_API_KEY=$TAVILY_API_KEY" >> .env # کلید در فایل env داکر هم قرار می‌گیرد
           docker build --no-cache -t $ECR_REGISTRY/misinfo_repo:latest .
           docker push $ECR_REGISTRY/misinfo_repo:latest
 
