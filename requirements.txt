@@ -13,3 +13,4 @@ pytest-asyncio
 httpx
 plotly
 tavily-python
+bcrypt

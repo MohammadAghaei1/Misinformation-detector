@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from backend.scraping import scrape_article
 from backend.storage import append_record, clear_all_history, update_record_feedback, read_history, check_cache, get_stats_data
+# Import the new Auth functions from your storage
+from backend.storage import verify_user, create_user 
 from backend.llm_judge import judge_news
 from dotenv import load_dotenv
 import json
@@ -14,21 +16,59 @@ load_dotenv()
 
 app = FastAPI()
 
+# --- NEW AUTH MODELS ---
+
+class UserAuth(BaseModel):
+    email: str
+    password: str
+
+# --- UPDATED ORIGINAL MODELS (Adding user_id) ---
+
 class PredictRequest(BaseModel):
     text: str
+    user_id: int # Added to link text analysis to user
 
 class ScrapeRequest(BaseModel):
     url: str
+    user_id: int # Added to link URL analysis to user
     
 class FeedbackRequest(BaseModel):
     id: str
-    feedback: str   
+    feedback: str
 
-# DASHBOARD ENDPOINT 
+class FinalRecordRequest(BaseModel):
+    text: str
+    label: str
+    confidence: float
+    explanation: str
+    reviewer_feedback: str
+    user_id: int # Added
+    input_type: str = "text"
+    url: str = ""
+    title: str = "N/A"
+
+# --- NEW AUTH ENDPOINTS ---
+
+@app.post("/signup")
+def signup(data: UserAuth):
+    success = create_user(data.email, data.password)
+    if not success:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    return {"message": "User created successfully"}
+
+@app.post("/login")
+def login(data: UserAuth):
+    user_id = verify_user(data.email, data.password)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    return {"user_id": user_id}
+
+# --- UPDATED ORIGINAL ENDPOINTS ---
+
 @app.get("/stats")
-def get_stats():
-    return get_stats_data() 
-
+def get_stats(user_id: int):
+    # Pass user_id to your stats function
+    return get_stats_data(user_id) 
 
 @app.get("/health")
 def health():
@@ -38,17 +78,10 @@ def health():
 def read_root():
     return {"message": "Welcome to the Misinformation Detector!"}
 
-@app.post("/scrape")
-def scrape(req: ScrapeRequest):
-    try:
-        return scrape_article(req.url)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Scraping failed: {str(e)}")
-
-
 @app.post("/predict")
 def predict(req: PredictRequest):
     try:
+        # Check cache (Logic remains same)
         cached = check_cache(req.text)
         if cached:
             return {**cached, "id": "CACHED", "source": "database"}
@@ -68,11 +101,11 @@ def predict(req: PredictRequest):
             "explanation": result.get("explanation"),
             "reviewer_feedback": "The user did not post a feedback."
         }
-        append_record(record)
+        # Updated to include user_id
+        append_record(record, req.user_id)
         return {"id": record_id, **result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/analyze_url")
 def analyze_url(req: ScrapeRequest):
@@ -98,54 +131,21 @@ def analyze_url(req: ScrapeRequest):
             "explanation": result.get('explanation'),
             "reviewer_feedback": "The user did not post a feedback."
         }
-        append_record(record)
+        # Updated to include user_id
+        append_record(record, req.user_id)
         return {"id": record_id, **result}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     
 @app.get("/history")
-def history(limit: int = 50):
+def history(user_id: int, limit: int = 50):
     try:
-        from backend.storage import read_history
-        df = read_history(limit)
+        # Pass user_id to filter history
+        df = read_history(user_id, limit)
         return df.to_dict(orient="records")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-class FinalRecordRequest(BaseModel):
-    text: str
-    label: str
-    confidence: float
-    explanation: str
-    reviewer_feedback: str
-    input_type: str = "text"
-    url: str = ""
-    title: str = "N/A"
-
-@app.post("/save_with_feedback")
-def save_with_feedback(req: FinalRecordRequest):
-    try:
-        user_feedback = req.reviewer_feedback.strip()
-        if not user_feedback:
-            user_feedback = "The user did not post a feedback."
-
-        record = {
-            "id": str(uuid.uuid4())[:8],
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "input_type": req.input_type,
-            "url": req.url,
-            "title": req.title,
-            "text": req.text,
-            "label": req.label,
-            "confidence": req.confidence,
-            "explanation": req.explanation,
-            "reviewer_feedback": user_feedback
-        }
-        append_record(record)
-        return {"status": "success"} 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
 @app.post("/update_feedback")
 def update_feedback(req: FeedbackRequest):
     success = update_record_feedback(req.id, req.feedback)
@@ -155,12 +155,10 @@ def update_feedback(req: FeedbackRequest):
         raise HTTPException(status_code=404, detail="Record not found")
     
 @app.post("/clear_history")
-def clear_history():
+def clear_history(user_id: int):
     try:
-        # Calling your database function
-        clear_all_history()
-        # Returning a clear success message
-        return {"status": "success", "message": "All history cleared"}
+        # Only clear records for this specific user
+        clear_all_history(user_id)
+        return {"status": "success", "message": "Your history cleared"}
     except Exception as e:
-        # If something goes wrong with SQLite/Database
         raise HTTPException(status_code=500, detail=f"Database Error: {str(e)}")
