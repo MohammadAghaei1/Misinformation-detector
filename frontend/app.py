@@ -12,11 +12,7 @@ st.set_page_config(
 
 # --- 2. Configuration & Session State ---
 
-# Local settings
-#API_URL = "http://localhost:8000" 
-
-# AWS settings 
-API_URL = "http://98.92.82.192:8000"
+API_URL = "http://localhost:8000" 
 
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
