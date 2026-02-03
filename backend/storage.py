@@ -62,17 +62,26 @@ def create_user(email, password):
         conn.close()
 
 def verify_user(email, password):
-    "Checks credentials and returns user_id"
+    "Checks credentials and returns user_id or specific error type"
     ensure_db_exists()
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    
+    # 1. First, check if the email exists at all
     cursor.execute('SELECT id, password FROM users WHERE email = ?', (email,))
     user = cursor.fetchone()
     conn.close()
     
-    if user and bcrypt.checkpw(password.encode('utf-8'), user[1]):
-        return user[0] # Returns the user's unique ID
-    return None
+    # 2. If no user found, return specific error string for the Backend
+    if not user:
+        return "USER_NOT_FOUND"
+    
+    # 3. Check if password is correct
+    if bcrypt.checkpw(password.encode('utf-8'), user[1]):
+        return user[0] # Returns the integer user_id on success
+    else:
+        # 4. If password doesn't match, return specific error string
+        return "WRONG_PASSWORD"
 
 # --- Updated Original Functions (Maintaining your logic) ---
 

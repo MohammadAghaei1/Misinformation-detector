@@ -58,10 +58,25 @@ def signup(data: UserAuth):
 
 @app.post("/login")
 def login(data: UserAuth):
-    user_id = verify_user(data.email, data.password)
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    return {"user_id": user_id}
+    # Call the updated verify_user from storage.py
+    result = verify_user(data.email, data.password)
+    
+    # 1. Handle case where Email is not found
+    if result == "USER_NOT_FOUND":
+        raise HTTPException(
+            status_code=404, 
+            detail="Email not found. Please register first."
+        )
+    
+    # 2. Handle case where Password is incorrect
+    if result == "WRONG_PASSWORD":
+        raise HTTPException(
+            status_code=401, 
+            detail="Incorrect password. Please try again."
+        )
+    
+    # 3. If login is successful, return the user_id
+    return {"user_id": result}
 
 # --- UPDATED ORIGINAL ENDPOINTS ---
 

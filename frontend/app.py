@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -23,23 +22,35 @@ if 'logged_in' not in st.session_state:
 def login_user(email, password):
     try:
         response = requests.post(f"{API_URL}/login", json={"email": email, "password": password})
+        
+        # 1. Success case
         if response.status_code == 200:
             data = response.json()
             st.session_state['logged_in'] = True
             st.session_state['user_id'] = data['user_id']
             st.session_state['user_email'] = email
-            return True
-        return False
-    except:
-        st.error("Connection Error: Backend unreachable.")
-        return False
+            return True, "Success"
+        
+        # 2. Email not found (404)
+        elif response.status_code == 404:
+            return False, "📧 Email not found. Please register first!"
+            
+        # 3. Wrong password (401)
+        elif response.status_code == 401:
+            return False, "🔑 Incorrect password. Please try again."
+            
+        # 4. Other errors
+        else:
+            return False, f"Login failed: {response.json().get('detail', 'Unknown error')}"
+            
+    except Exception as e:
+        return False, f"Connection Error: {str(e)}"
 
 def signup_user(email, password):
     try:
         response = requests.post(f"{API_URL}/signup", json={"email": email, "password": password})
         return response.status_code == 200
     except:
-        st.error("Connection Error: Backend unreachable.")
         return False
 
 # --- 3. Login/Signup UI ---
@@ -51,13 +62,18 @@ if not st.session_state['logged_in']:
         st.title("🔑 Misinfo Detector Account Login")
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
-        if st.button("Login", use_container_width=True):
-            if login_user(email, password):
+        
+        # Added unique key 'login_btn_main' to avoid duplicates
+        if st.button("Login", use_container_width=True, key="login_btn_main"):
+            success, message = login_user(email, password)
+            if success:
                 st.success("Logged in!")
                 st.rerun()
             else:
-                st.error("Invalid credentials")
-        if st.button("New user? Create account"):
+                st.error(message) # Shows specific 404/401 error
+        
+        # Added unique key 'signup_nav_btn'
+        if st.button("New user? Create account", key="signup_nav_btn"):
             st.session_state['page'] = 'signup'
             st.rerun()
 
@@ -66,7 +82,9 @@ if not st.session_state['logged_in']:
         new_email = st.text_input("New Email")
         new_pass = st.text_input("New Password", type="password")
         conf_pass = st.text_input("Confirm Password", type="password")
-        if st.button("Register", use_container_width=True):
+        
+        # Added unique key 'reg_btn'
+        if st.button("Register", use_container_width=True, key="reg_btn"):
             if new_pass != conf_pass:
                 st.error("Passwords match error")
             elif signup_user(new_email, new_pass):
@@ -75,7 +93,9 @@ if not st.session_state['logged_in']:
                 st.rerun()
             else:
                 st.error("Email already exists")
-        if st.button("Back to Login"):
+                
+        # Added unique key 'back_login_btn'
+        if st.button("Back to Login", key="back_login_btn"):
             st.session_state['page'] = 'login'
             st.rerun()
 
@@ -84,7 +104,7 @@ else:
     # --- LOGOUT BUTTON IN SIDEBAR ---
     st.sidebar.title("👤 Account")
     st.sidebar.write(f"Logged in: {st.session_state['user_email']}")
-    if st.sidebar.button("Logout"):
+    if st.sidebar.button("Logout", key="logout_sidebar_btn"):
         st.session_state['logged_in'] = False
         st.rerun()
 
@@ -92,8 +112,8 @@ else:
     st.set_page_config(page_title="Misinformation Analysis Dashboard",page_icon="favicon.png", layout="wide")
     st.title("🛡️ Misinformation Analysis Dashboard")
 
+    # Metrics and Analysis logic continues... (Everything remains the same)
     try: 
-        # Added user_id to the stats request so it only shows YOUR data
         stats_r = requests.get(f"{API_URL}/stats?user_id={st.session_state['user_id']}", timeout=5) 
         if stats_r.status_code == 200: 
              stats = stats_r.json() 
@@ -164,7 +184,6 @@ else:
             with st.chat_message("user"): st.write(url) 
             with st.chat_message("assistant"): 
                 with st.status("Processing URL...", expanded=True) as status: 
-                    # Added user_id to prediction request
                     r = requests.post(f"{API_URL}/analyze_url", json={"url": url, "user_id": st.session_state['user_id']}) 
                     if r.status_code == 200: 
                         st.session_state['res1'] = r.json() 
@@ -193,7 +212,6 @@ else:
             with st.chat_message("user"): st.write(text[:200] + "...") 
             with st.chat_message("assistant"): 
                 with st.status("Analyzing text...", expanded=True) as status: 
-                    # Added user_id to prediction request
                     r = requests.post(f"{API_URL}/predict", json={"text": text, "user_id": st.session_state['user_id']}) 
                     if r.status_code == 200: 
                         st.session_state['res2'] = r.json() 
@@ -216,7 +234,6 @@ else:
     with tab3:
         st.subheader("Analysis History")
         try:
-            # History now filters by user_id
             r = requests.get(f"{API_URL}/history?user_id={st.session_state['user_id']}&limit=50")
             if r.status_code == 200:
                 data = r.json()
@@ -225,7 +242,7 @@ else:
                     st.divider()
                     with st.expander("🗑️ Clear My History"):
                         confirm = st.checkbox("Confirm deletion")
-                        if st.button("🚨 Clear My Records", type="primary", disabled=not confirm):
+                        if st.button("🚨 Clear My Records", type="primary", disabled=not confirm, key="clear_hist_btn"):
                             requests.post(f"{API_URL}/clear_history", json={"user_id": st.session_state['user_id']})
                             st.rerun()
                 else:
