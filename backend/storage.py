@@ -47,12 +47,22 @@ def ensure_db_exists():
 # --- New Authentication Functions ---
 
 def create_user(email, password):
-    "Hashes password and saves new user"
+    "Hashes password and saves new user with normalization"
     ensure_db_exists()
+    
+    # Normalize email to prevent duplicate/not-found issues
+    email = email.lower().strip() 
+    
     hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+        
+        # Check using TRIM/LOWER to be 100% safe
+        cursor.execute('SELECT id FROM users WHERE TRIM(LOWER(email)) = ?', (email,))
+        if cursor.fetchone():
+            return False # Email already exists
+            
         cursor.execute('INSERT INTO users (email, password) VALUES (?, ?)', (email, hashed))
         conn.commit()
         return True
@@ -64,10 +74,14 @@ def create_user(email, password):
 def verify_user(email, password):
     "Checks credentials and returns user_id or specific error type"
     ensure_db_exists()
+    
+    # Normalize email for consistent lookup
+    email = email.lower().strip()
+    
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # 1. First, check if the email exists at all
+    # 1. First, check if the email exists at all (using normalization)
     cursor.execute('SELECT id, password FROM users WHERE email = ?', (email,))
     user = cursor.fetchone()
     conn.close()
@@ -85,7 +99,7 @@ def verify_user(email, password):
 
 # --- Updated Original Functions (Maintaining your logic) ---
 
-def append_record(record: dict, user_id: int): # Added user_id parameter
+def append_record(record: dict, user_id: int): 
     "Save record to SQLite linked to a user"
     ensure_db_exists()
     conn = sqlite3.connect(DB_PATH)
@@ -94,7 +108,7 @@ def append_record(record: dict, user_id: int): # Added user_id parameter
     df.to_sql("news_history", conn, if_exists="append", index=False)
     conn.close()
 
-def read_history(user_id: int, limit: int = 50): # Added user_id filter
+def read_history(user_id: int, limit: int = 50): 
     "Read history filtered by user_id"
     ensure_db_exists()
     conn = sqlite3.connect(DB_PATH)
@@ -126,7 +140,7 @@ def check_cache(news_text: str):
     conn.close()
     return df.iloc[0].to_dict() if not df.empty else None
 
-def get_stats_data(user_id: int): # Added user_id filter
+def get_stats_data(user_id: int): 
     "Calculate stats only for the specific user"
     ensure_db_exists()
     conn = sqlite3.connect(DB_PATH)
@@ -150,7 +164,7 @@ def get_stats_data(user_id: int): # Added user_id filter
     finally:
         conn.close()
 
-def clear_all_history(user_id: int): # Added user_id protection
+def clear_all_history(user_id: int): 
     "Delete records only for this specific user"
     ensure_db_exists()
     conn = sqlite3.connect(DB_PATH)

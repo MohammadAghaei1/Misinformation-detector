@@ -3,12 +3,19 @@ import pandas as pd
 import plotly.express as px
 import requests
 
-# --- 1. Configuration & Session State ---
+# --- 1. Global Page Configuration (Must be first) ---
+st.set_page_config(
+    page_title="Misinformation Analysis Dashboard",
+    page_icon="favicon.png",
+    layout="wide"
+)
 
-# Local setting
+# --- 2. Configuration & Session State ---
+
+# Local settings
 #API_URL = "http://localhost:8000" 
 
-# AWS settings
+# AWS settings 
 API_URL = "http://98.92.82.192:8000"
 
 if 'logged_in' not in st.session_state:
@@ -17,13 +24,12 @@ if 'logged_in' not in st.session_state:
     st.session_state['user_email'] = None
     st.session_state['page'] = 'login'
 
-# --- 2. Authentication Functions ---
+# --- 3. Authentication Functions ---
 
 def login_user(email, password):
     try:
         response = requests.post(f"{API_URL}/login", json={"email": email, "password": password})
         
-        # 1. Success case
         if response.status_code == 200:
             data = response.json()
             st.session_state['logged_in'] = True
@@ -31,15 +37,12 @@ def login_user(email, password):
             st.session_state['user_email'] = email
             return True, "Success"
         
-        # 2. Email not found (404)
         elif response.status_code == 404:
             return False, "📧 Email not found. Please register first!"
             
-        # 3. Wrong password (401)
         elif response.status_code == 401:
             return False, "🔑 Incorrect password. Please try again."
             
-        # 4. Other errors
         else:
             return False, f"Login failed: {response.json().get('detail', 'Unknown error')}"
             
@@ -53,26 +56,22 @@ def signup_user(email, password):
     except:
         return False
 
-# --- 3. Login/Signup UI ---
+# --- 4. Login/Signup UI ---
 
 if not st.session_state['logged_in']:
-    st.set_page_config(page_title="Login - Misinfo Detector", layout="centered")
-    
     if st.session_state['page'] == 'login':
         st.title("🔑 Misinfo Detector Account Login")
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
         
-        # Added unique key 'login_btn_main' to avoid duplicates
         if st.button("Login", use_container_width=True, key="login_btn_main"):
             success, message = login_user(email, password)
             if success:
                 st.success("Logged in!")
                 st.rerun()
             else:
-                st.error(message) # Shows specific 404/401 error
+                st.error(message)
         
-        # Added unique key 'signup_nav_btn'
         if st.button("New user? Create account", key="signup_nav_btn"):
             st.session_state['page'] = 'signup'
             st.rerun()
@@ -83,7 +82,6 @@ if not st.session_state['logged_in']:
         new_pass = st.text_input("New Password", type="password")
         conf_pass = st.text_input("Confirm Password", type="password")
         
-        # Added unique key 'reg_btn'
         if st.button("Register", use_container_width=True, key="reg_btn"):
             if new_pass != conf_pass:
                 st.error("Passwords match error")
@@ -94,25 +92,20 @@ if not st.session_state['logged_in']:
             else:
                 st.error("Email already exists")
                 
-        # Added unique key 'back_login_btn'
         if st.button("Back to Login", key="back_login_btn"):
             st.session_state['page'] = 'login'
             st.rerun()
 
-# --- 4. Your Original Main App (Protected) ---
+# --- 5. Main Dashboard (Protected) ---
 else:
-    # --- LOGOUT BUTTON IN SIDEBAR ---
     st.sidebar.title("👤 Account")
     st.sidebar.write(f"Logged in: {st.session_state['user_email']}")
     if st.sidebar.button("Logout", key="logout_sidebar_btn"):
         st.session_state['logged_in'] = False
         st.rerun()
 
-    # --- START OF YOUR ORIGINAL CODE ---
-    st.set_page_config(page_title="Misinformation Analysis Dashboard",page_icon="favicon.png", layout="wide")
     st.title("🛡️ Misinformation Analysis Dashboard")
 
-    # Metrics and Analysis logic continues... (Everything remains the same)
     try: 
         stats_r = requests.get(f"{API_URL}/stats?user_id={st.session_state['user_id']}", timeout=5) 
         if stats_r.status_code == 200: 
@@ -158,7 +151,6 @@ else:
 
              with col_chart: 
                  if total > 0: 
-                     st.markdown("<div style='padding-top: 20px;'></div>", unsafe_allow_html=True) 
                      chart_df = pd.DataFrame({ 
                          "Category": ["Fake", "Real", "Uncertain"], 
                          "Percentage": [fake_p, real_p, uncertain_p] 
@@ -198,10 +190,10 @@ else:
             st.write(f"**Confidence:** {res.get('confidence')}%") 
             st.write(f"**Explanation:** {res.get('explanation')}") 
             with st.expander("📝 Add Feedback", expanded=True): 
-                fb1 = st.text_area("Comment:", key="f1", placeholder="Type your feedback or leave empty...") 
+                fb1 = st.text_area("Comment:", key="f1", placeholder="Type your feedback...") 
                 if st.button("Save Feedback", key="s1"): 
                     requests.post(f"{API_URL}/update_feedback", json={"id": res['id'], "feedback": fb1}) 
-                    st.success("Feedback updated successfully!") 
+                    st.success("Feedback updated!") 
                     del st.session_state['res1'] 
                     st.rerun() 
 
@@ -224,10 +216,10 @@ else:
             st.write(f"**Confidence:** {res.get('confidence')}%") 
             st.write(f"**Explanation:** {res.get('explanation')}") 
             with st.expander("📝 Add Feedback", expanded=True): 
-                fb2 = st.text_area("Comment:", key="f2", placeholder="Type your feedback or leave empty...") 
+                fb2 = st.text_area("Comment:", key="f2", placeholder="Type your feedback...") 
                 if st.button("Save Feedback", key="s2"): 
                     requests.post(f"{API_URL}/update_feedback", json={"id": res['id'], "feedback": fb2}) 
-                    st.success("Feedback updated successfully!") 
+                    st.success("Feedback updated!") 
                     del st.session_state['res2'] 
                     st.rerun()
 

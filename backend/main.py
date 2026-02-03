@@ -51,6 +51,7 @@ class FinalRecordRequest(BaseModel):
 
 @app.post("/signup")
 def signup(data: UserAuth):
+    # success is True if user was created, False if email already exists
     success = create_user(data.email, data.password)
     if not success:
         raise HTTPException(status_code=400, detail="Email already registered")
