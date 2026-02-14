@@ -1,13 +1,13 @@
+import os
+import bcrypt 
 import sqlite3
 import pandas as pd
-import os
-from datetime import datetime
-import numpy as np
-import bcrypt # Added for password security
+
 
 # Use a data folder that will be mapped to Docker Volume
 DB_PATH = os.path.join("data", "news_database.db")
 
+# Checks for the existence of the database file
 def ensure_db_exists():
     "Create database and table if they don't exist"
     os.makedirs("data", exist_ok=True)
@@ -44,8 +44,7 @@ def ensure_db_exists():
     conn.commit()
     conn.close()
 
-# --- New Authentication Functions ---
-
+# Normalizes the email, hashes the password and saves the new user record to the 'users' table
 def create_user(email, password):
     "Hashes password and saves new user with normalization"
     ensure_db_exists()
@@ -71,6 +70,7 @@ def create_user(email, password):
     finally:
         conn.close()
 
+# Authenticates a user by checking if the email exists and verifying the provided password against the stored hash
 def verify_user(email, password):
     "Checks credentials and returns user_id or specific error type"
     ensure_db_exists()
@@ -97,8 +97,7 @@ def verify_user(email, password):
         # 4. If password doesn't match, return specific error string
         return "WRONG_PASSWORD"
 
-# --- Updated Original Functions (Maintaining your logic) ---
-
+# Saves a news analysis result and linking it to a specific user ID for historical tracking
 def append_record(record: dict, user_id: int): 
     "Save record to SQLite linked to a user"
     ensure_db_exists()
@@ -108,6 +107,7 @@ def append_record(record: dict, user_id: int):
     df.to_sql("news_history", conn, if_exists="append", index=False)
     conn.close()
 
+# Retrieves the analysis history for a specific user
 def read_history(user_id: int, limit: int = 50): 
     "Read history filtered by user_id"
     ensure_db_exists()
@@ -117,6 +117,7 @@ def read_history(user_id: int, limit: int = 50):
     conn.close()
     return df
 
+# Updates the reviewer_feedback column for a specific record ID to store user comments or corrections
 def update_record_feedback(record_id: str, feedback_text: str):
     "Logic remains exactly the same"
     ensure_db_exists()
@@ -130,6 +131,7 @@ def update_record_feedback(record_id: str, feedback_text: str):
     conn.close()
     return success
 
+#Checks if an identical news text has already been analyzed to return a cached result instead of re-running the AI model
 def check_cache(news_text: str):
     "Logic remains exactly same (Global Cache)"
     ensure_db_exists()
@@ -140,6 +142,7 @@ def check_cache(news_text: str):
     conn.close()
     return df.iloc[0].to_dict() if not df.empty else None
 
+# Calculates summary statistics specifically for the requesting user's history.
 def get_stats_data(user_id: int): 
     "Calculate stats only for the specific user"
     ensure_db_exists()
@@ -164,6 +167,7 @@ def get_stats_data(user_id: int):
     finally:
         conn.close()
 
+# Permanently deletes all records from the 'news_history' table that belong to the specified user ID
 def clear_all_history(user_id: int): 
     "Delete records only for this specific user"
     ensure_db_exists()

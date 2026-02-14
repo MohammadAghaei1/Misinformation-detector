@@ -1,41 +1,37 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from backend.scraping import scrape_article
-from backend.storage import append_record, clear_all_history, update_record_feedback, read_history, check_cache, get_stats_data
-# Import the new Auth functions from your storage
-from backend.storage import verify_user, create_user 
-from backend.llm_judge import judge_news
-from dotenv import load_dotenv
-import json
 import uuid
 import datetime
-import os
-import pandas as pd
+from pydantic import BaseModel
+from dotenv import load_dotenv
+from backend.llm_judge import judge_news
+from fastapi import FastAPI, HTTPException
+from backend.scraping import scrape_article
+from backend.storage import append_record, clear_all_history, update_record_feedback, read_history, check_cache, get_stats_data, verify_user, create_user
 
 load_dotenv()
 
 app = FastAPI()
 
-# --- NEW AUTH MODELS ---
-
+# Data model for user authentication (Login/Signup)
 class UserAuth(BaseModel):
     email: str
     password: str
 
-# --- UPDATED ORIGINAL MODELS (Adding user_id) ---
-
+# Data model for news prediction requests containing text and user ID
 class PredictRequest(BaseModel):
     text: str
-    user_id: int # Added to link text analysis to user
+    user_id: int 
 
+# Data model for URL-based analysis requests, including the target URL and user ID
 class ScrapeRequest(BaseModel):
     url: str
     user_id: int # Added to link URL analysis to user
     
+# Data model for submitting user feedback on a specific analysis record    
 class FeedbackRequest(BaseModel):
     id: str
     feedback: str
 
+# Comprehensive data model representing a full analysis record for storage
 class FinalRecordRequest(BaseModel):
     text: str
     label: str
@@ -47,8 +43,7 @@ class FinalRecordRequest(BaseModel):
     url: str = ""
     title: str = "N/A"
 
-# --- NEW AUTH ENDPOINTS ---
-
+# Handles new user registration by hashing passwords and storing credentials
 @app.post("/signup")
 def signup(data: UserAuth):
     # success is True if user was created, False if email already exists
@@ -57,6 +52,7 @@ def signup(data: UserAuth):
         raise HTTPException(status_code=400, detail="Email already registered")
     return {"message": "User created successfully"}
 
+# Authenticates users and returns a unique user ID upon successful login
 @app.post("/login")
 def login(data: UserAuth):
     # Call the updated verify_user from storage.py
@@ -79,21 +75,23 @@ def login(data: UserAuth):
     # 3. If login is successful, return the user_id
     return {"user_id": result}
 
-# --- UPDATED ORIGINAL ENDPOINTS ---
-
+# Retrieves analysis statistics (Total, Fake, Real) for a specific user ID
 @app.get("/stats")
 def get_stats(user_id: int):
     # Pass user_id to your stats function
     return get_stats_data(user_id) 
 
+# Returns the operational status of the API server
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
+# Simple root endpoint to verify the API is running and welcome users
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Misinformation Detector!"}
 
+# Analyzes raw news text, checks for cached results, and stores the verdict
 @app.post("/predict")
 def predict(req: PredictRequest):
     try:
@@ -123,6 +121,7 @@ def predict(req: PredictRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Scrapes content from a provided URL and performs misinformation analysis
 @app.post("/analyze_url")
 def analyze_url(req: ScrapeRequest):
     try:
@@ -152,7 +151,8 @@ def analyze_url(req: ScrapeRequest):
         return {"id": record_id, **result}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    
+
+# Fetches a list of previous analysis records filtered by the user's ID    
 @app.get("/history")
 def history(user_id: int, limit: int = 50):
     try:
@@ -162,6 +162,7 @@ def history(user_id: int, limit: int = 50):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Updates the feedback field of an existing record in the database
 @app.post("/update_feedback")
 def update_feedback(req: FeedbackRequest):
     success = update_record_feedback(req.id, req.feedback)
@@ -169,7 +170,8 @@ def update_feedback(req: FeedbackRequest):
         return {"status": "success"}
     else:
         raise HTTPException(status_code=404, detail="Record not found")
-    
+
+# Deletes all analysis history records associated with a specific user 
 @app.post("/clear_history")
 def clear_history(user_id: int):
     try:

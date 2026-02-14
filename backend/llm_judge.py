@@ -1,32 +1,34 @@
 import os
-import json
 import re
-from huggingface_hub import InferenceClient
+import json
 from tavily import TavilyClient
+from huggingface_hub import InferenceClient
 
+# Initializes and returns a TavilyClient using the API key from environment variables
 def _get_tavily_client():
     tavily_key = os.getenv("TAVILY_API_KEY")
     return TavilyClient(api_key=tavily_key)
 
+# Initializes and returns a HuggingFace InferenceClient using the provided HF token
 def _get_hf_client():
     return InferenceClient(token=os.getenv("HF_TOKEN"))
 
+# Performs RAG-based misinformation analysis by searching real-time web data
 def judge_news(text: str, is_url: bool = False) -> dict:
-    model = os.getenv("HF_MODEL", "meta-llama/Llama-3.3-70B-Instruct")
+    model = os.getenv("HF_MODEL", "meta-llama/Llama-3.2-3B-Instruct")
     hf_client = _get_hf_client()
     tavily = _get_tavily_client()
 
-    # STEP 1: Gather Proof (Dynamic RAG)
+    # Gather Proof (Dynamic RAG)
     search_context = ""
     try:
-        # We search the web to see if other sources confirm the text from your scraper
+        # search the web to see if other sources confirm the text from your scraper
         search_results = tavily.search(query=text[:200], search_depth="advanced", max_results=3)
         for res in search_results['results']:
             search_context += f"- Source: {res['title']}\n  Fact: {res['content']}\n"
     except Exception as e:
         search_context = "Search failed, rely on logic."
 
-    # STEP 2: The "Detective" Prompt
     # This prompt tells Llama to stop saying "I don't know" and start comparing facts
     if is_url:
         role_instruction = "You are analyzing a scraped article from a URL."
@@ -57,14 +59,14 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     }}
     """
 
-    # STEP 3: Get Llama's verdict
+    # Get Llama's verdict
     resp = hf_client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.1
     )
 
-    # (Keep your existing re.search and json.loads logic here)
+    # Keep your existing re.search and json.loads logic here
     try:
         raw_content = resp.choices[0].message.content.strip()
         json_match = re.search(r'\{.*\}', raw_content, re.DOTALL)

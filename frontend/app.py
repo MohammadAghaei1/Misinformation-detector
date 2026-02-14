@@ -1,17 +1,17 @@
-import streamlit as st
-import pandas as pd
-import plotly.express as px
 import requests
+import pandas as pd
+import streamlit as st
+import plotly.express as px
 
-# --- 1. Global Page Configuration (Must be first) ---
+
+# Global Page Configuration 
 st.set_page_config(
     page_title="Misinformation Analysis Dashboard",
     page_icon="favicon.png",
     layout="wide"
 )
 
-# --- 2. Configuration & Session State ---
-
+# Configuration & Session State
 API_URL = "http://localhost:8000" 
 
 if 'logged_in' not in st.session_state:
@@ -20,8 +20,7 @@ if 'logged_in' not in st.session_state:
     st.session_state['user_email'] = None
     st.session_state['page'] = 'login'
 
-# --- 3. Authentication Functions ---
-
+# Sends login credentials to the FastAPI backend and manages the user session on success
 def login_user(email, password):
     try:
         response = requests.post(f"{API_URL}/login", json={"email": email, "password": password})
@@ -45,6 +44,7 @@ def login_user(email, password):
     except Exception as e:
         return False, f"Connection Error: {str(e)}"
 
+# Registers a new user by sending their credentials to the backend signup endpoint
 def signup_user(email, password):
     try:
         response = requests.post(f"{API_URL}/signup", json={"email": email, "password": password})
@@ -52,8 +52,7 @@ def signup_user(email, password):
     except:
         return False
 
-# --- 4. Login/Signup UI ---
-
+# Display login or signup forms based on the current session page state
 if not st.session_state['logged_in']:
     if st.session_state['page'] == 'login':
         st.title("🔑 Misinfo Detector Account Login")
@@ -92,7 +91,7 @@ if not st.session_state['logged_in']:
             st.session_state['page'] = 'login'
             st.rerun()
 
-# --- 5. Main Dashboard (Protected) ---
+# Main Dashboard, Fetches and displays user-specific statistics and visualization charts
 else:
     st.sidebar.title("👤 Account")
     st.sidebar.write(f"Logged in: {st.session_state['user_email']}")
@@ -163,6 +162,10 @@ else:
 
     st.divider() 
 
+
+    # Tab 1: URL Analysis - Handles news scraping and prediction via URL
+    # Tab 2: Text Analysis - Directly analyzes user-pasted news content
+    # Tab 3: History - Displays previous analysis records and provides a clear-history option
     tab1, tab2, tab3 = st.tabs(["Analyze by URL", "Paste text", "History"]) 
 
     with tab1: 
