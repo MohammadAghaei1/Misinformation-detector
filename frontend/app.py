@@ -222,21 +222,27 @@ else:
                     del st.session_state['res2'] 
                     st.rerun()
 
-    with tab3:
-        st.subheader("Analysis History")
-        try:
-            r = requests.get(f"{API_URL}/history?user_id={st.session_state['user_id']}&limit=50")
-            if r.status_code == 200:
-                data = r.json()
-                if data:
-                    st.dataframe(pd.DataFrame(data), use_container_width=True, height=400)
-                    st.divider()
-                    with st.expander("🗑️ Clear My History"):
-                        confirm = st.checkbox("Confirm deletion")
-                        if st.button("🚨 Clear My Records", type="primary", disabled=not confirm, key="clear_hist_btn"):
-                            requests.post(f"{API_URL}/clear_history", json={"user_id": st.session_state['user_id']})
+with tab3:
+    st.subheader("Analysis History")
+    try:
+        r = requests.get(f"{API_URL}/history?user_id={st.session_state['user_id']}&limit=50")
+        if r.status_code == 200:
+            data = r.json()
+            if data:
+                st.dataframe(pd.DataFrame(data), use_container_width=True, height=400)
+                st.divider()
+                with st.expander("🗑️ Clear My History"):
+                    confirm = st.checkbox("Confirm deletion")
+                    if st.button("🚨 Clear My Records", type="primary", disabled=not confirm, key="clear_hist_btn"):
+                        user_id_val = int(st.session_state['user_id'])
+                        del_r = requests.post(f"{API_URL}/clear_history?user_id={user_id_val}")
+                        
+                        if del_r.status_code == 200:
+                            st.success("History Cleared!")
                             st.rerun()
-                else:
-                    st.info("No records found.")
-        except Exception: 
-            st.error("Connection Error: Backend unreachable.")
+                        else:
+                            st.error(f"Failed to clear: {del_r.status_code} - {del_r.text}")
+            else:
+                st.info("No records found.")
+    except Exception as e: 
+        st.error(f"Connection Error: {str(e)}")
