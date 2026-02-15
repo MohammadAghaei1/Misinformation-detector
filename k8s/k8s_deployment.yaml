@@ -20,6 +20,11 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 8000 
+        resources:
+          requests:
+            memory: "512Mi"
+          limits:
+            memory: "900Mi"
         env:
         - name: TAVILY_API_KEY
           valueFrom:
