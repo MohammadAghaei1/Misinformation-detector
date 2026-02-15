@@ -37,7 +37,7 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     else:
         role_instruction = "You are a professional fact-checker analyzing a raw text claim."
 
-    # Refined prompt with strict logical verification rules
+    # prompt with aggressive logical verification rules to fix label-explanation mismatch
     prompt = f"""
     {role_instruction}
     Current Date: February 2026.
@@ -45,24 +45,24 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     SEARCH CONTEXT (Real-time facts from the web):
     {search_context}
 
-    INPUT TEXT TO VERIFY:
+    INPUT TEXT TO VERIFY (The Claim):
     {text[:1000]}
 
     INSTRUCTIONS:
-    1. Extract the specific claim made in the INPUT TEXT.
-    2. Check the SEARCH CONTEXT to see if it supports or contradicts this claim.
-    3. STRICT LABELING RULES:
-       - If the SEARCH CONTEXT confirms the claim is a LIE, HOAX, or FALSE (e.g. if the search says someone is alive but the claim says they are dead), you MUST label it 'fake'.
-       - Only label 'real' if the SEARCH CONTEXT confirms the claim is 100% accurate.
-       - If there is no clear evidence either way, label 'uncertain'.
+    1. Identify the core claim being made in the INPUT TEXT.
+    2. Compare this claim against the facts in the SEARCH CONTEXT.
+    3. MANDATORY LABELING RULES:
+       - If the SEARCH CONTEXT proves the claim is WRONG or a HOAX (e.g., search results say the entity is active/alive but the claim says it is closed/dead), you MUST label it 'fake'.
+       - NEVER label 'real' if your explanation admits there is no evidence for the claim or if it contradicts the search results.
+       - 'real' means the user's specific claim is factually correct according to the web.
     4. Trust the SEARCH CONTEXT above your own internal training data.
-    5. The 'explanation' must justify the 'label' based ONLY on the SEARCH CONTEXT provided.
+    5. The 'explanation' MUST justify the 'label' logically. Do not contradict yourself.
 
     Return ONLY JSON:
     {{
       "label": "fake" or "real" or "uncertain",
       "confidence": (0-100),
-      "explanation": "State the evidence found in the search context and conclude if the claim is true or false."
+      "explanation": "Briefly provide evidence and state why the claim is true or false."
     }}
     """
 
@@ -78,7 +78,7 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     except Exception as e:
         return {"label": "uncertain", "confidence": 0, "explanation": f"Model inference failed: {str(e)}"}
 
-    # Keep your existing re.search and json.loads logic here
+    # Keep existing re.search and json.loads logic here
     try:
         json_match = re.search(r'\{.*\}', raw_content, re.DOTALL)
         return json.loads(json_match.group())
