@@ -22,12 +22,11 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     # Dynamic RAG
     search_context = ""
     try:
-        # search the web to see if other sources confirm the text from your scraper
-        search_results = tavily.search(query=text[:200], search_depth="basic", max_results=2)
+        search_results = tavily.search(query=text[:200], search_depth="basic", max_results=3)
         for res in search_results['results']:
-            # Truncate content to 400 chars to avoid memory overflow
-            content_snippet = res['content'][:400]
-            search_context += f"- Source: {res['title']}\n  Fact: {content_snippet}\n"
+            # Use snippet for high-quality context without massive token usage
+            context_piece = res.get('snippet', res['content'][:300])
+            search_context += f"- Source: {res['title']}\n  Key Info: {context_piece}\n"
     except Exception as e:
         search_context = "Search failed, rely on logic."
 
@@ -39,7 +38,7 @@ def judge_news(text: str, is_url: bool = False) -> dict:
 
     prompt = f"""
     {role_instruction}
-    Current Date: January 2026.
+    Current Date: February 2026.
     
     SEARCH CONTEXT (Real-time facts from the web):
     {search_context}
@@ -67,7 +66,7 @@ def judge_news(text: str, is_url: bool = False) -> dict:
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=300
+            max_tokens=350
         )
         raw_content = resp.choices[0].message.content.strip()
     except Exception as e:
