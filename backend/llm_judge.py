@@ -33,11 +33,11 @@ def judge_news(text: str, is_url: bool = False) -> dict:
 
     # This prompt tells Llama to stop saying "I don't know" and start comparing facts
     if is_url:
-        role_instruction = "You are analyzing a scraped article from a URL."
+        role_instruction = "You are a professional fact-checker analyzing a scraped article."
     else:
-        role_instruction = "You are analyzing a raw text claim."
+        role_instruction = "You are a professional fact-checker analyzing a raw text claim."
 
-    # prompt with stricter logical instructions to prevent label confusion
+    # Refined prompt with strict logical verification rules
     prompt = f"""
     {role_instruction}
     Current Date: February 2026.
@@ -49,20 +49,20 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     {text[:1000]}
 
     INSTRUCTIONS:
-    1. Identify the core claim in the INPUT TEXT.
-    2. Compare the claim with the SEARCH CONTEXT facts.
-    3. LABELING RULES:
-       - If the SEARCH CONTEXT proves the claim is TRUE, label 'real'.
-       - If the SEARCH CONTEXT proves the claim is FALSE or a hoax, label 'fake'.
-       - If the SEARCH CONTEXT is contradictory or insufficient, label 'uncertain'.
-    4. Trust the SEARCH CONTEXT more than your internal memory.
-    5. Ensure the 'explanation' matches the 'label' logically.
+    1. Extract the specific claim made in the INPUT TEXT.
+    2. Check the SEARCH CONTEXT to see if it supports or contradicts this claim.
+    3. STRICT LABELING RULES:
+       - If the SEARCH CONTEXT confirms the claim is a LIE, HOAX, or FALSE (e.g. if the search says someone is alive but the claim says they are dead), you MUST label it 'fake'.
+       - Only label 'real' if the SEARCH CONTEXT confirms the claim is 100% accurate.
+       - If there is no clear evidence either way, label 'uncertain'.
+    4. Trust the SEARCH CONTEXT above your own internal training data.
+    5. The 'explanation' must justify the 'label' based ONLY on the SEARCH CONTEXT provided.
 
     Return ONLY JSON:
     {{
       "label": "fake" or "real" or "uncertain",
       "confidence": (0-100),
-      "explanation": "Briefly explain why the claim is true or false based on the search results."
+      "explanation": "State the evidence found in the search context and conclude if the claim is true or false."
     }}
     """
 
