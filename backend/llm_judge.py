@@ -37,7 +37,7 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     else:
         role_instruction = "You are a professional fact-checker analyzing a raw text claim."
 
-    # prompt with aggressive logical verification rules to fix label-explanation mismatch
+    # prompt without forced confidence rules
     prompt = f"""
     {role_instruction}
     Current Date: February 2026.
@@ -45,24 +45,25 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     SEARCH CONTEXT (Real-time facts from the web):
     {search_context}
 
-    INPUT TEXT TO VERIFY (The Claim):
+    INPUT TEXT TO VERIFY:
     {text[:1000]}
 
     INSTRUCTIONS:
-    1. Identify the core claim being made in the INPUT TEXT.
-    2. Compare this claim against the facts in the SEARCH CONTEXT.
-    3. MANDATORY LABELING RULES:
-       - If the SEARCH CONTEXT proves the claim is WRONG or a HOAX (e.g., search results say the entity is active/alive but the claim says it is closed/dead), you MUST label it 'fake'.
-       - NEVER label 'real' if your explanation admits there is no evidence for the claim or if it contradicts the search results.
-       - 'real' means the user's specific claim is factually correct according to the web.
-    4. Trust the SEARCH CONTEXT above your own internal training data.
-    5. The 'explanation' MUST justify the 'label' logically. Do not contradict yourself.
+    1. Extract the core claim from the INPUT TEXT.
+    2. Compare it with the facts in the SEARCH CONTEXT.
+    3. LABELING RULES:
+       - Label 'real' if the claim is supported by the search results.
+       - Label 'fake' if the claim is contradicted by the search results.
+       - Label 'uncertain' if evidence is missing or inconclusive.
+    4. Provide your own 'confidence' score (0-100) based on your internal assessment of the evidence quality.
+    5. Trust the SEARCH CONTEXT more than your internal memory.
+    6. Ensure the 'explanation' matches the 'label' logically.
 
     Return ONLY JSON:
     {{
       "label": "fake" or "real" or "uncertain",
-      "confidence": (0-100),
-      "explanation": "Briefly provide evidence and state why the claim is true or false."
+      "confidence": (integer),
+      "explanation": "Briefly justify your label and confidence score based on the evidence."
     }}
     """
 
