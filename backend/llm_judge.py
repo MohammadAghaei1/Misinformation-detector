@@ -22,6 +22,7 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     # Dynamic RAG
     search_context = ""
     try:
+        # search the web to see if other sources confirm the text from your scraper
         search_results = tavily.search(query=text[:200], search_depth="basic", max_results=3)
         for res in search_results['results']:
             # Use snippet for high-quality context without massive token usage
@@ -36,6 +37,7 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     else:
         role_instruction = "You are analyzing a raw text claim."
 
+    # prompt with stricter logical instructions to prevent label confusion
     prompt = f"""
     {role_instruction}
     Current Date: February 2026.
@@ -44,19 +46,23 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     {search_context}
 
     INPUT TEXT TO VERIFY:
-    {text[:1000]}
+    {text[:600]}
 
     INSTRUCTIONS:
-    1. Compare the INPUT TEXT with the SEARCH CONTEXT.
-    2. If the SEARCH CONTEXT confirms the events, label it 'real'.
-    3. If there is a direct contradiction or no major news outlet reports this, label it 'fake'.
+    1. Identify the core claim in the INPUT TEXT.
+    2. Compare the claim with the SEARCH CONTEXT facts.
+    3. LABELING RULES:
+       - If the SEARCH CONTEXT proves the claim is TRUE, label 'real'.
+       - If the SEARCH CONTEXT proves the claim is FALSE or a hoax, label 'fake'.
+       - If the SEARCH CONTEXT is contradictory or insufficient, label 'uncertain'.
     4. Trust the SEARCH CONTEXT more than your internal memory.
+    5. Ensure the 'explanation' matches the 'label' logically.
 
     Return ONLY JSON:
     {{
       "label": "fake" or "real" or "uncertain",
       "confidence": (0-100),
-      "explanation": "Briefly explain the alignment or contradiction found."
+      "explanation": "Briefly explain why the claim is true or false based on the search results."
     }}
     """
 
