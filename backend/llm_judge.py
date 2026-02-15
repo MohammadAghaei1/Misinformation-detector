@@ -19,13 +19,15 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     hf_client = _get_hf_client()
     tavily = _get_tavily_client()
 
-    # Gather Proof (Dynamic RAG)
+    # Dynamic RAG
     search_context = ""
     try:
         # search the web to see if other sources confirm the text from your scraper
-        search_results = tavily.search(query=text[:200], search_depth="advanced", max_results=3)
+        search_results = tavily.search(query=text[:200], search_depth="basic", max_results=2)
         for res in search_results['results']:
-            search_context += f"- Source: {res['title']}\n  Fact: {res['content']}\n"
+            # Truncate content to 400 chars to avoid memory overflow
+            content_snippet = res['content'][:400]
+            search_context += f"- Source: {res['title']}\n  Fact: {content_snippet}\n"
     except Exception as e:
         search_context = "Search failed, rely on logic."
 
@@ -43,7 +45,7 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     {search_context}
 
     INPUT TEXT TO VERIFY:
-    {text}
+    {text[:1000]}
 
     INSTRUCTIONS:
     1. Compare the INPUT TEXT with the SEARCH CONTEXT.
@@ -60,15 +62,19 @@ def judge_news(text: str, is_url: bool = False) -> dict:
     """
 
     # Get Llama's verdict
-    resp = hf_client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.1
-    )
+    try:
+        resp = hf_client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=300
+        )
+        raw_content = resp.choices[0].message.content.strip()
+    except Exception as e:
+        return {"label": "uncertain", "confidence": 0, "explanation": f"Model inference failed: {str(e)}"}
 
     # Keep your existing re.search and json.loads logic here
     try:
-        raw_content = resp.choices[0].message.content.strip()
         json_match = re.search(r'\{.*\}', raw_content, re.DOTALL)
         return json.loads(json_match.group())
     except:
