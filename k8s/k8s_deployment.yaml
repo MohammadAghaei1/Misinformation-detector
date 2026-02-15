@@ -37,7 +37,7 @@ spec:
               name: misinfo-secrets
               key: HF_TOKEN
         - name: HF_MODEL
-          value: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+          value: "meta-llama/Llama-3.1-8B-Instruct"
         volumeMounts:
         - name: sqlite-storage
           mountPath: /app/backend/storage

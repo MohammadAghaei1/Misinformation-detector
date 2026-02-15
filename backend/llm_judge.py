@@ -15,7 +15,7 @@ def _get_hf_client():
 
 # Performs RAG-based misinformation analysis by searching real-time web data
 def judge_news(text: str, is_url: bool = False) -> dict:
-    model = os.getenv("HF_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct")
+    model = os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
     hf_client = _get_hf_client()
     tavily = _get_tavily_client()
 
