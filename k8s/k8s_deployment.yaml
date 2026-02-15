@@ -24,12 +24,12 @@ spec:
         - name: TAVILY_API_KEY
           valueFrom:
             secretKeyRef:
-              name: ecr-secret
+              name: misinfo-secrets
               key: TAVILY_API_KEY
         - name: HF_TOKEN
           valueFrom:
             secretKeyRef:
-              name: ecr-secret
+              name: misinfo-secrets
               key: HF_TOKEN
         - name: HF_MODEL
           value: "meta-llama/Llama-3.2-3B-Instruct"
